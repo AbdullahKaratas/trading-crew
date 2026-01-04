@@ -2,9 +2,9 @@ name: Daily Trading Analysis
 
 on:
   schedule:
-    # 14:00 CET = 13:00 UTC (Winter) / 12:00 UTC (Summer)
-    # Using 13:00 UTC for winter time - 1 hour before US Market Open
-    - cron: '0 13 * * 1-5'  # Monday to Friday
+    # 14:30 CET = 13:30 UTC (Winter) / 12:30 UTC (Summer)
+    # 1 hour before US Market Open - catches 8:30 EST economic data
+    - cron: '30 13 * * 1-5'  # Monday to Friday
 
   # Allow manual trigger for testing
   workflow_dispatch:
