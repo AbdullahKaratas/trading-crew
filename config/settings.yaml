@@ -1,0 +1,88 @@
+# Trading Bot Configuration Settings
+
+trading:
+  # Risk tolerance: conservative, moderate, medium_aggressive, aggressive
+  risk_level: medium_aggressive
+  # Minimum confidence score (0-100) to trigger an alert
+  min_confidence_for_alert: 65
+  # Maximum position size as percentage of portfolio (for risk calc display)
+  max_position_pct: 10
+
+analysis:
+  schedule:
+    # Daily analysis time in configured timezone
+    daily_analysis: "14:00"  # 1h before US Market Open
+  timezone: "Europe/Berlin"
+  # Delay between analyzing each ticker (seconds) - respects API rate limits
+  # Set to 30+ seconds to avoid Anthropic rate limits (50k tokens/min)
+  ticker_delay: 30
+  # Enable caching of market data
+  cache_enabled: true
+  cache_ttl_hours: 4
+
+signals:
+  types:
+    - BUY
+    - SELL
+    - LONG
+    - SHORT
+    - HOLD
+    - SUPPORT_ALERT
+    - RESISTANCE_ALERT
+    - NEWS_ALERT
+  # Number of price targets to calculate
+  target_count: 2
+  # Default stop loss percentage
+  default_stop_loss_pct: 8
+
+llm:
+  # Claude Haiku for fast tasks (analysts, data retrieval)
+  quick_think_model: "claude-haiku-4-5-20251001"
+  # Claude Opus for final decisions and debates
+  deep_think_model: "claude-opus-4-5-20251101"
+  # Maximum debate rounds between bull/bear researchers
+  max_debate_rounds: 2
+  # Temperature for LLM calls
+  temperature: 0.7
+  # Max retries for API calls
+  max_retries: 3
+  # Retry delay in seconds (exponential backoff base)
+  retry_delay: 2
+
+telegram:
+  # Include full reasoning in messages
+  send_full_reasoning: true
+  # Only send alerts for actionable signals (confidence > min_confidence)
+  only_actionable_signals: true
+  # Send daily summary at end of analysis
+  send_daily_summary: true
+  # Message formatting
+  formatting:
+    use_emojis: true
+    include_chart_link: true
+
+data_sources:
+  # Primary market data source
+  primary: alpha_vantage
+  # News sources to aggregate
+  news_sources:
+    - alpha_vantage
+    - finnhub  # Optional, requires API key
+  # Technical indicators to calculate
+  technical_indicators:
+    - MACD
+    - RSI
+    - SMA_20
+    - SMA_50
+    - SMA_200
+    - VOLUME
+    - SUPPORT_RESISTANCE
+
+logging:
+  level: INFO
+  # Log to file
+  file_enabled: true
+  file_path: "logs/trading_bot.log"
+  # Log rotation
+  max_file_size_mb: 10
+  backup_count: 5

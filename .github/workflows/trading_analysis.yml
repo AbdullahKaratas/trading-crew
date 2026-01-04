@@ -1,0 +1,162 @@
+name: Daily Trading Analysis
+
+on:
+  schedule:
+    # 14:00 CET = 13:00 UTC (Winter) / 12:00 UTC (Summer)
+    # Using 13:00 UTC for winter time - 1 hour before US Market Open
+    - cron: '0 13 * * 1-5'  # Monday to Friday
+
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: 'Single symbol to analyze (leave empty for all)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run (no Telegram messages)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # TradingAgents analysis can take time
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Run Daily Trading Analysis
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Multiple Alpha Vantage keys for rotation (75 calls/day)
+          ALPHA_VANTAGE_API_KEYS: ${{ secrets.ALPHA_VANTAGE_API_KEYS }}
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+          INPUT_SYMBOL: ${{ inputs.symbol }}
+        run: |
+          if [ -n "$INPUT_SYMBOL" ]; then
+            python -m src.main --symbol "$INPUT_SYMBOL"
+          else
+            python -m src.main
+          fi
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 7
+
+      - name: Upload analysis logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 3
+
+  # Health check job - runs more frequently to verify the setup
+  health-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify configuration
+        run: |
+          python -c "
+          import yaml
+          from pathlib import Path
+
+          # Check config files exist and are valid
+          config_dir = Path('config')
+
+          with open(config_dir / 'settings.yaml') as f:
+              settings = yaml.safe_load(f)
+              print('Settings loaded:', list(settings.keys()))
+
+          with open(config_dir / 'watchlist.yaml') as f:
+              watchlist = yaml.safe_load(f)
+              stocks = []
+              for category, items in watchlist.get('watchlist', {}).items():
+                  stocks.extend(items)
+              print(f'Watchlist loaded: {len(stocks)} stocks')
+
+          print('Configuration OK!')
+          "
+
+      - name: Test imports
+        run: |
+          python -c "
+          from src.analysis.signals import TradingSignal, SignalType, DailySummary
+          from src.analysis.signal_extractor import extract_signal_with_claude
+          from src.notifications.formatters import SignalFormatter
+          from src.notifications.telegram_bot import TelegramNotifier
+          from src.utils.market_hours import MarketHoursChecker
+          print('All imports successful!')
+          "
+
+      - name: Check API keys configured
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ALPHA_VANTAGE_API_KEYS: ${{ secrets.ALPHA_VANTAGE_API_KEYS }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -c "
+          import os
+          import sys
+
+          required = ['ANTHROPIC_API_KEY', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']
+          optional = ['ALPHA_VANTAGE_API_KEYS', 'FINNHUB_API_KEY']
+
+          missing = [k for k in required if not os.getenv(k)]
+
+          if missing:
+              print(f'ERROR: Missing required secrets: {missing}')
+              sys.exit(1)
+
+          # Check Alpha Vantage keys
+          av_keys = os.getenv('ALPHA_VANTAGE_API_KEYS', '')
+          key_count = len([k for k in av_keys.split(',') if k.strip()]) if av_keys else 0
+          print(f'Alpha Vantage keys configured: {key_count}')
+
+          print('All required secrets are configured!')
+          "

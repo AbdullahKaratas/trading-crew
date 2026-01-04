@@ -1,0 +1,49 @@
+# Stock Watchlist for Trading Analysis
+# Categories organized by sector/theme
+
+watchlist:
+  ai_infrastructure:
+    - symbol: APLD
+      name: Applied Digital
+    - symbol: IREN
+      name: Iris Energy
+    - symbol: NBIS
+      name: Nebius
+
+  semiconductors:
+    - symbol: ASML
+      name: ASML Holding
+
+  quantum_computing:
+    - symbol: QBTS
+      name: D-Wave Quantum
+    - symbol: QNC.V
+      name: Quantum eMotion
+
+  energy:
+    - symbol: SMNEY
+      name: Siemens Energy (ADR)
+
+  space:
+    - symbol: RKLB
+      name: Rocket Lab
+    - symbol: ASTS
+      name: AST SpaceMobile
+
+  ev_ai:
+    - symbol: TSLA
+      name: Tesla
+
+  big_tech:
+    - symbol: META
+      name: Meta Platforms
+
+  fintech:
+    - symbol: SOFI
+      name: SoFi Technologies
+    - symbol: HOOD
+      name: Robinhood Markets
+
+  drones_iot:
+    - symbol: ONDS
+      name: Ondas Holdings
