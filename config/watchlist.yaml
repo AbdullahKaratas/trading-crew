@@ -1,49 +1,70 @@
 # Stock Watchlist for Trading Analysis
-# Categories organized by sector/theme
+# Stocks are rotated by day of week to save API costs
+# ~3 stocks per day = ~15 Anthropic calls/day instead of 100+
 
+# Day rotation: monday, tuesday, wednesday, thursday, friday
 watchlist:
+  # MONDAY - AI Infrastructure
   ai_infrastructure:
     - symbol: APLD
       name: Applied Digital
+      day: monday
     - symbol: IREN
       name: Iris Energy
+      day: monday
     - symbol: NBIS
       name: Nebius
+      day: monday
 
+  # TUESDAY - Semiconductors & Quantum
   semiconductors:
     - symbol: ASML
       name: ASML Holding
+      day: tuesday
 
   quantum_computing:
     - symbol: QBTS
       name: D-Wave Quantum
+      day: tuesday
     - symbol: QNC.V
       name: Quantum eMotion
+      day: tuesday
 
+  # WEDNESDAY - Energy & Space
   energy:
     - symbol: SMNEY
       name: Siemens Energy (ADR)
+      day: wednesday
 
   space:
     - symbol: RKLB
       name: Rocket Lab
+      day: wednesday
     - symbol: ASTS
       name: AST SpaceMobile
+      day: wednesday
 
+  # THURSDAY - EV/AI & Big Tech
   ev_ai:
     - symbol: TSLA
       name: Tesla
+      day: thursday
 
   big_tech:
     - symbol: META
       name: Meta Platforms
+      day: thursday
 
+  # FRIDAY - Fintech & Drones
   fintech:
     - symbol: SOFI
       name: SoFi Technologies
+      day: friday
     - symbol: HOOD
       name: Robinhood Markets
+      day: friday
 
   drones_iot:
     - symbol: ONDS
       name: Ondas Holdings
+      day: friday

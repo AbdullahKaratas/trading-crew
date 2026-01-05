@@ -30,8 +30,20 @@ from .utils.logger import setup_logging, get_logger
 from .utils.market_hours import MarketHoursChecker
 
 
-def load_config(config_dir: Path) -> tuple[dict, list[dict]]:
-    """Load configuration files."""
+def get_current_day_name() -> str:
+    """Get current day of week as lowercase string."""
+    from datetime import datetime
+    days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    return days[datetime.now().weekday()]
+
+
+def load_config(config_dir: Path, filter_by_day: bool = True) -> tuple[dict, list[dict]]:
+    """Load configuration files.
+
+    Args:
+        config_dir: Path to config directory
+        filter_by_day: If True, only return stocks scheduled for today
+    """
     settings_path = config_dir / "settings.yaml"
     watchlist_path = config_dir / "watchlist.yaml"
 
@@ -43,10 +55,19 @@ def load_config(config_dir: Path) -> tuple[dict, list[dict]]:
 
     # Flatten watchlist into list of stocks
     watchlist = []
+    current_day = get_current_day_name()
+
     for category, stocks in watchlist_data.get("watchlist", {}).items():
         for stock in stocks:
             stock["category"] = category
-            watchlist.append(stock)
+            # Filter by day if enabled
+            stock_day = stock.get("day", "").lower()
+            if filter_by_day and stock_day:
+                if stock_day == current_day:
+                    watchlist.append(stock)
+            else:
+                # No day specified = analyze every day
+                watchlist.append(stock)
 
     return settings, watchlist
 
@@ -419,6 +440,12 @@ def parse_args() -> argparse.Namespace:
         help="Log level (DEBUG, INFO, WARNING, ERROR)",
     )
 
+    parser.add_argument(
+        "--all-stocks",
+        action="store_true",
+        help="Analyze all stocks regardless of day rotation",
+    )
+
     return parser.parse_args()
 
 
@@ -467,13 +494,19 @@ def main() -> int:
         return 1
 
     try:
-        settings, watchlist = load_config(config_dir)
+        # filter_by_day=False if --all-stocks is set
+        filter_by_day = not args.all_stocks
+        settings, watchlist = load_config(config_dir, filter_by_day=filter_by_day)
     except Exception as e:
         logger.error("config_load_error", error=str(e))
         print(f"Error loading config: {e}")
         return 1
 
-    logger.info("config_loaded", stocks_count=len(watchlist))
+    current_day = get_current_day_name()
+    if filter_by_day:
+        logger.info("config_loaded", stocks_count=len(watchlist), day=current_day)
+    else:
+        logger.info("config_loaded", stocks_count=len(watchlist), mode="all_stocks")
 
     # Create and run bot
     bot = TradingBot(
