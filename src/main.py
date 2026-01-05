@@ -112,15 +112,37 @@ def create_trading_agents_config(settings: dict) -> dict:
 
 
 def get_current_price(symbol: str) -> float:
-    """Get current stock price from yfinance."""
+    """Get current stock price from yfinance.
+
+    Tries multiple sources in order of preference:
+    1. regularMarketPrice (real-time during market hours)
+    2. currentPrice (may include pre/post market)
+    3. preMarketPrice (before market open)
+    4. postMarketPrice (after market close)
+    5. previousClose (last trading day close)
+    6. Historical data fallback
+    """
     import yfinance as yf
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info
-        price = info.get('regularMarketPrice') or info.get('currentPrice') or info.get('previousClose')
-        if price:
-            return float(price)
-        hist = ticker.history(period="1d")
+
+        # Try various price fields in order of preference
+        price_fields = [
+            'regularMarketPrice',
+            'currentPrice',
+            'preMarketPrice',
+            'postMarketPrice',
+            'previousClose',
+        ]
+
+        for field in price_fields:
+            price = info.get(field)
+            if price and price > 0:
+                return float(price)
+
+        # Fallback to historical data
+        hist = ticker.history(period="5d")
         if not hist.empty:
             return float(hist['Close'].iloc[-1])
     except Exception:
