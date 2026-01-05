@@ -11,7 +11,7 @@ class FinancialSituationMemory:
         # For OpenAI, use their embeddings API
         if self.llm_provider == "anthropic":
             # Use chromadb's default embedding (sentence-transformers)
-            self.situation_collection = self.chroma_client.create_collection(name=name)
+            self.situation_collection = self.chroma_client.get_or_create_collection(name=name)
             self.use_custom_embedding = False
         else:
             from openai import OpenAI
@@ -20,7 +20,7 @@ class FinancialSituationMemory:
             else:
                 self.embedding = "text-embedding-3-small"
             self.client = OpenAI(base_url=config.get("backend_url"))
-            self.situation_collection = self.chroma_client.create_collection(name=name)
+            self.situation_collection = self.chroma_client.get_or_create_collection(name=name)
             self.use_custom_embedding = True
 
     def get_embedding(self, text):
