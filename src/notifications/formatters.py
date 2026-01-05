@@ -340,10 +340,12 @@ class SummaryFormatter:
                 )
             lines.append("")
 
-        # HOLD count
+        # HOLD signals with details
         if summary.hold_signals:
             lines.append(f"⏸️ *HOLD:* {len(summary.hold_signals)} Aktien")
-            lines.append("   • Keine klaren Signale")
+            for signal in summary.hold_signals[:3]:  # Max 3 to keep summary short
+                action_short = (signal.action_detail or "Halten")[:50]
+                lines.append(f"   • {signal.symbol} - {action_short}")
             lines.append("")
 
         # Top pick
