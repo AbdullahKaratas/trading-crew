@@ -128,6 +128,19 @@ def get_stock_stats_indicators_window(
         ),
     }
 
+    # Handle comma-separated indicators (LLM sometimes passes multiple at once)
+    if "," in indicator:
+        indicators = [ind.strip() for ind in indicator.split(",")]
+        results = []
+        for ind in indicators:
+            if ind in best_ind_params:
+                try:
+                    result = get_stock_stats_indicators_window(symbol, ind, curr_date, look_back_days)
+                    results.append(result)
+                except Exception as e:
+                    results.append(f"Error for {ind}: {str(e)}")
+        return "\n\n".join(results) if results else "No valid indicators found"
+
     if indicator not in best_ind_params:
         raise ValueError(
             f"Indicator {indicator} is not supported. Please choose from: {list(best_ind_params.keys())}"

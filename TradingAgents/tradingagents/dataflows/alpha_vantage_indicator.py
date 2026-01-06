@@ -57,6 +57,19 @@ def get_indicator(
         "vwma": "VWMA: A moving average weighted by volume. Usage: Confirm trends by integrating price action with volume data. Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses."
     }
 
+    # Handle comma-separated indicators (LLM sometimes passes multiple at once)
+    if "," in indicator:
+        indicators = [ind.strip() for ind in indicator.split(",")]
+        results = []
+        for ind in indicators:
+            if ind in supported_indicators:
+                try:
+                    result = get_indicator(symbol, ind, curr_date, look_back_days, interval, time_period, series_type)
+                    results.append(result)
+                except Exception as e:
+                    results.append(f"Error for {ind}: {str(e)}")
+        return "\n\n".join(results) if results else "No valid indicators found"
+
     if indicator not in supported_indicators:
         raise ValueError(
             f"Indicator {indicator} is not supported. Please choose from: {list(supported_indicators.keys())}"

@@ -255,13 +255,63 @@ class SignalFormatter:
         return "\n".join(lines)
 
     def _format_hold_signal(self, signal: TradingSignal) -> str:
-        """Format HOLD signal (minimal format)."""
-        recommendation = signal.final_recommendation or signal.action_detail or "Keine klaren Signale"
-        return (
-            f"⏸️ *HOLD: {signal.symbol}* ({signal.name})\n"
-            f"💰 ${signal.current_price:.2f}\n"
-            f"💭 {recommendation[:150]}"
-        )
+        """Format HOLD signal with full details (same as BUY/SELL)."""
+        lines = [
+            f"⏸️ *HOLD SIGNAL: {signal.symbol}* ({signal.name})",
+            "",
+            f"💰 *Preis:* ${signal.current_price:.2f}",
+        ]
+
+        # Action detail from LLM
+        if signal.action_detail:
+            lines.append(f"🎯 *Aktion:* {signal.action_detail}")
+
+        # Stop Loss from LLM (trailing stop for HOLD)
+        if signal.stop_loss:
+            stop_pct = self._calc_pct(signal.current_price, signal.stop_loss)
+            lines.append(f"🛑 *Stop-Loss:* ${signal.stop_loss:.2f} ({stop_pct})")
+            if signal.stop_loss_reasoning:
+                lines.append(f"   _{signal.stop_loss_reasoning[:80]}_")
+
+        # Entry/Exit targets from LLM (re-entry levels for HOLD)
+        if signal.exit_targets:
+            lines.append("")
+            lines.append("🎯 *Entry/Exit Levels:*")
+            for target in signal.exit_targets[:3]:
+                if isinstance(target, dict):
+                    price = target.get("price")
+                    action = target.get("action", "")
+                    if price:
+                        pct = self._calc_pct(signal.current_price, price)
+                        lines.append(f"   • ${price:.2f} ({pct}): {action}")
+
+        # Key events from LLM
+        if signal.key_events:
+            lines.append("")
+            lines.append("📅 *Wichtige Events:*")
+            for event in signal.key_events[:3]:
+                lines.append(f"   • {event}")
+
+        # Exit/Entry conditions from LLM
+        if signal.exit_conditions:
+            lines.append("")
+            lines.append("⚠️ *Bedingungen:*")
+            for condition in signal.exit_conditions[:3]:
+                lines.append(f"   • {condition}")
+
+        # Final recommendation from LLM
+        if signal.final_recommendation:
+            lines.append("")
+            lines.append("💡 *Empfehlung:*")
+            rec = signal.final_recommendation[:300]
+            lines.append(f"_{rec}_")
+
+        # Timestamp and market status
+        market_status = self.market_checker.get_market_status()
+        time_str = signal.timestamp.strftime("%H:%M")
+        lines.extend(["", f"🕐 {time_str} CET | {market_status}"])
+
+        return "\n".join(lines)
 
     def _calc_pct(self, current: float, target: float) -> str:
         """Calculate percentage change string."""
