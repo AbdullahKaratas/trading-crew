@@ -89,7 +89,7 @@ class SignalFormatter:
             lines.append("")
             lines.append("💡 *Empfehlung:*")
             # Wrap long text
-            rec = signal.final_recommendation[:300]
+            rec = signal.final_recommendation[:400]
             lines.append(f"_{rec}_")
 
         # Timestamp and market status
@@ -151,7 +151,7 @@ class SignalFormatter:
         if signal.final_recommendation:
             lines.append("")
             lines.append("💡 *Empfehlung:*")
-            rec = signal.final_recommendation[:300]
+            rec = signal.final_recommendation[:400]
             lines.append(f"_{rec}_")
 
         # Timestamp and market status
@@ -303,7 +303,7 @@ class SignalFormatter:
         if signal.final_recommendation:
             lines.append("")
             lines.append("💡 *Empfehlung:*")
-            rec = signal.final_recommendation[:300]
+            rec = signal.final_recommendation[:400]
             lines.append(f"_{rec}_")
 
         # Timestamp and market status
@@ -356,7 +356,7 @@ class SummaryFormatter:
         if summary.buy_signals:
             lines.append(f"🚀 *BUY Signals:* {len(summary.buy_signals)}")
             for signal in summary.buy_signals:
-                action = signal.action_detail[:50] if signal.action_detail else "BUY"
+                action = signal.action_detail[:80] if signal.action_detail else "BUY"
                 lines.append(f"   • {signal.symbol} - {action}")
             lines.append("")
 
@@ -364,7 +364,7 @@ class SummaryFormatter:
         if summary.sell_signals:
             lines.append(f"🔴 *SELL Signals:* {len(summary.sell_signals)}")
             for signal in summary.sell_signals:
-                action = signal.action_detail[:50] if signal.action_detail else "SELL"
+                action = signal.action_detail[:80] if signal.action_detail else "SELL"
                 lines.append(f"   • {signal.symbol} - {action}")
             lines.append("")
 
@@ -394,7 +394,7 @@ class SummaryFormatter:
         if summary.hold_signals:
             lines.append(f"⏸️ *HOLD:* {len(summary.hold_signals)} Aktien")
             for signal in summary.hold_signals[:3]:  # Max 3 to keep summary short
-                action_short = (signal.action_detail or "Halten")[:50]
+                action_short = (signal.action_detail or "Halten")[:80]
                 lines.append(f"   • {signal.symbol} - {action_short}")
             lines.append("")
 
@@ -402,7 +402,7 @@ class SummaryFormatter:
         if summary.top_pick:
             lines.append(f"💡 *Top Pick:* {summary.top_pick.symbol}")
             if summary.top_pick.action_detail:
-                lines.append(f"   {summary.top_pick.action_detail[:60]}")
+                lines.append(f"   {summary.top_pick.action_detail[:100]}")
             lines.append("")
 
         # Errors if any
