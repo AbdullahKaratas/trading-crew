@@ -68,3 +68,12 @@ watchlist:
     - symbol: ONDS
       name: Ondas Holdings
       day: friday
+
+  # TEST - Commodities (for testing purposes)
+  commodities:
+    - symbol: GLD
+      name: SPDR Gold Trust
+      day: test
+    - symbol: SLV
+      name: iShares Silver Trust
+      day: test

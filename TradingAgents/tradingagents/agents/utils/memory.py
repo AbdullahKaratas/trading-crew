@@ -7,9 +7,9 @@ class FinancialSituationMemory:
         self.llm_provider = config.get("llm_provider", "openai").lower()
         self.chroma_client = chromadb.Client(Settings(allow_reset=True))
 
-        # Use chromadb's default embedding function for Anthropic
+        # Use chromadb's default embedding function for Anthropic/Mixed/Google
         # For OpenAI, use their embeddings API
-        if self.llm_provider == "anthropic":
+        if self.llm_provider in ("anthropic", "mixed", "google"):
             # Use chromadb's default embedding (sentence-transformers)
             self.situation_collection = self.chroma_client.get_or_create_collection(name=name)
             self.use_custom_embedding = False
