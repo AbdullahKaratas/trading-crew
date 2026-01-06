@@ -37,12 +37,13 @@ def get_current_day_name() -> str:
     return days[datetime.now().weekday()]
 
 
-def load_config(config_dir: Path, filter_by_day: bool = True) -> tuple[dict, list[dict]]:
+def load_config(config_dir: Path, filter_by_day: bool = True, days: list[str] = None) -> tuple[dict, list[dict]]:
     """Load configuration files.
 
     Args:
         config_dir: Path to config directory
-        filter_by_day: If True, only return stocks scheduled for today
+        filter_by_day: If True, only return stocks scheduled for specified days
+        days: List of days to include (e.g., ["monday", "tuesday"]). If None, uses current day.
     """
     settings_path = config_dir / "settings.yaml"
     watchlist_path = config_dir / "watchlist.yaml"
@@ -55,7 +56,12 @@ def load_config(config_dir: Path, filter_by_day: bool = True) -> tuple[dict, lis
 
     # Flatten watchlist into list of stocks
     watchlist = []
-    current_day = get_current_day_name()
+
+    # Use provided days or default to current day
+    if days:
+        target_days = [d.lower() for d in days]
+    else:
+        target_days = [get_current_day_name()]
 
     for category, stocks in watchlist_data.get("watchlist", {}).items():
         for stock in stocks:
@@ -63,7 +69,7 @@ def load_config(config_dir: Path, filter_by_day: bool = True) -> tuple[dict, lis
             # Filter by day if enabled
             stock_day = stock.get("day", "").lower()
             if filter_by_day and stock_day:
-                if stock_day == current_day:
+                if stock_day in target_days:
                     watchlist.append(stock)
             else:
                 # No day specified = analyze every day
@@ -74,7 +80,11 @@ def load_config(config_dir: Path, filter_by_day: bool = True) -> tuple[dict, lis
 
 def create_trading_agents_config(settings: dict) -> dict:
     """
-    Create TradingAgents config with Claude instead of OpenAI.
+    Create TradingAgents config with mixed LLM providers.
+
+    Mixed Mode:
+    - Gemini 3 Flash for analysts (quick_think_llm) - cheaper, faster
+    - Claude Opus for final decision (deep_think_llm) - best reasoning
 
     Args:
         settings: Our settings.yaml config
@@ -84,17 +94,37 @@ def create_trading_agents_config(settings: dict) -> dict:
     """
     config = DEFAULT_CONFIG.copy()
 
-    # Use Anthropic/Claude
-    config["llm_provider"] = "anthropic"
-    config["deep_think_llm"] = settings.get("llm", {}).get(
-        "deep_think_model", "claude-opus-4-5-20251101"
-    )
-    config["quick_think_llm"] = settings.get("llm", {}).get(
-        "quick_think_model", "claude-haiku-4-5-20251001"
-    )
+    # Determine LLM provider mode
+    llm_provider = settings.get("llm", {}).get("provider", "mixed")
+    config["llm_provider"] = llm_provider
 
-    # Anthropic API endpoint
-    config["backend_url"] = "https://api.anthropic.com"
+    if llm_provider == "mixed":
+        # Mixed mode: Gemini for analysts, Opus for final decision
+        config["quick_think_llm"] = settings.get("llm", {}).get(
+            "quick_think_model", "gemini-3-flash-preview"  # Gemini 3 for analysts
+        )
+        config["deep_think_llm"] = settings.get("llm", {}).get(
+            "deep_think_model", "claude-opus-4-5-20251101"  # Opus for final
+        )
+    elif llm_provider == "anthropic":
+        # Full Anthropic mode (original)
+        config["quick_think_llm"] = settings.get("llm", {}).get(
+            "quick_think_model", "claude-haiku-4-5-20251001"
+        )
+        config["deep_think_llm"] = settings.get("llm", {}).get(
+            "deep_think_model", "claude-opus-4-5-20251101"
+        )
+    elif llm_provider == "google":
+        # Full Google mode
+        config["quick_think_llm"] = settings.get("llm", {}).get(
+            "quick_think_model", "gemini-3-flash-preview"
+        )
+        config["deep_think_llm"] = settings.get("llm", {}).get(
+            "deep_think_model", "gemini-2.5-pro"
+        )
+
+    # Backend URL (not used for Anthropic/Google, but needed for OpenAI/Ollama)
+    config["backend_url"] = settings.get("llm", {}).get("backend_url", "https://api.anthropic.com")
 
     # Debate settings
     config["max_debate_rounds"] = settings.get("llm", {}).get("max_debate_rounds", 2)
@@ -468,6 +498,12 @@ def parse_args() -> argparse.Namespace:
         help="Analyze all stocks regardless of day rotation",
     )
 
+    parser.add_argument(
+        "--days",
+        type=str,
+        help="Comma-separated days to analyze (e.g., 'monday,tuesday')",
+    )
+
     return parser.parse_args()
 
 
@@ -518,14 +554,20 @@ def main() -> int:
     try:
         # filter_by_day=False if --all-stocks is set
         filter_by_day = not args.all_stocks
-        settings, watchlist = load_config(config_dir, filter_by_day=filter_by_day)
+        # Parse --days argument if provided
+        days_list = None
+        if args.days:
+            days_list = [d.strip() for d in args.days.split(",")]
+        settings, watchlist = load_config(config_dir, filter_by_day=filter_by_day, days=days_list)
     except Exception as e:
         logger.error("config_load_error", error=str(e))
         print(f"Error loading config: {e}")
         return 1
 
     current_day = get_current_day_name()
-    if filter_by_day:
+    if args.days:
+        logger.info("config_loaded", stocks_count=len(watchlist), days=args.days)
+    elif filter_by_day:
         logger.info("config_loaded", stocks_count=len(watchlist), day=current_day)
     else:
         logger.info("config_loaded", stocks_count=len(watchlist), mode="all_stocks")

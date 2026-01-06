@@ -36,9 +36,11 @@ signals:
   default_stop_loss_pct: 8
 
 llm:
-  # Claude Haiku for fast tasks (analysts, data retrieval)
-  quick_think_model: "claude-haiku-4-5-20251001"
-  # Claude Opus for final decisions and debates
+  # Provider mode: "mixed" (Gemini + Opus), "anthropic" (all Claude), "google" (all Gemini)
+  provider: "mixed"
+  # Gemini 3 Flash Preview for fast tasks (analysts, data retrieval) - cheaper!
+  quick_think_model: "gemini-3-flash-preview"
+  # Claude Opus for final decisions and debates - best reasoning!
   deep_think_model: "claude-opus-4-5-20251101"
   # Maximum debate rounds between bull/bear researchers
   max_debate_rounds: 2

@@ -72,16 +72,25 @@ class TradingAgentsGraph:
         )
 
         # Initialize LLMs
-        if self.config["llm_provider"].lower() == "openai" or self.config["llm_provider"] == "ollama" or self.config["llm_provider"] == "openrouter":
+        llm_provider = self.config["llm_provider"].lower()
+
+        if llm_provider == "openai" or llm_provider == "ollama" or llm_provider == "openrouter":
             self.deep_thinking_llm = ChatOpenAI(model=self.config["deep_think_llm"], base_url=self.config["backend_url"])
             self.quick_thinking_llm = ChatOpenAI(model=self.config["quick_think_llm"], base_url=self.config["backend_url"])
-        elif self.config["llm_provider"].lower() == "anthropic":
+        elif llm_provider == "anthropic":
             # ChatAnthropic uses ANTHROPIC_API_KEY env var automatically, no base_url needed
             self.deep_thinking_llm = ChatAnthropic(model=self.config["deep_think_llm"])
             self.quick_thinking_llm = ChatAnthropic(model=self.config["quick_think_llm"])
-        elif self.config["llm_provider"].lower() == "google":
+        elif llm_provider == "google":
             self.deep_thinking_llm = ChatGoogleGenerativeAI(model=self.config["deep_think_llm"])
             self.quick_thinking_llm = ChatGoogleGenerativeAI(model=self.config["quick_think_llm"])
+        elif llm_provider == "mixed":
+            # Mixed mode: Gemini for analysts (quick), Opus for final decision (deep)
+            # quick_think_llm should be a Gemini model (e.g., gemini-3-flash-preview)
+            # deep_think_llm should be an Anthropic model (e.g., claude-opus-4-5-20251101)
+            self.quick_thinking_llm = ChatGoogleGenerativeAI(model=self.config["quick_think_llm"])
+            self.deep_thinking_llm = ChatAnthropic(model=self.config["deep_think_llm"])
+            print(f"[Mixed Mode] Analysts: {self.config['quick_think_llm']} | Final: {self.config['deep_think_llm']}")
         else:
             raise ValueError(f"Unsupported LLM provider: {self.config['llm_provider']}")
         
