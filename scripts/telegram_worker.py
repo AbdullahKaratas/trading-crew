@@ -165,14 +165,18 @@ _{stock_data['name']}_
 
 def run_analysis(symbol: str) -> dict:
     """Run TradingAgents analysis."""
-    config = {
+    from tradingagents.default_config import DEFAULT_CONFIG
+
+    # Start with defaults and override LLM settings
+    config = DEFAULT_CONFIG.copy()
+    config.update({
         "llm_provider": "mixed",
         "quick_think_llm": "gemini-2.0-flash",
         "deep_think_llm": "claude-opus-4-5-20251101",
         "deep_think_fallback": "gemini-2.5-pro",
         "max_debate_rounds": 2,
         "max_risk_discuss_rounds": 1,
-    }
+    })
 
     ta = TradingAgentsGraph(debug=False, config=config)
     today = date.today().isoformat()
