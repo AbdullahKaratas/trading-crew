@@ -396,9 +396,9 @@ Target 2: $XX.XX (+X.X%)
 Risk/Reward: X.X:1
 ━━━━━━━━━━━━━━━━━━━━"""
 
-    # Use Gemini with Google Search grounding
+    # Use Gemini 3 with Google Search grounding
     model = genai.GenerativeModel(
-        "gemini-2.0-flash",  # 2.0-flash supports Google Search grounding
+        "gemini-3-flash-preview",
         tools="google_search_retrieval"
     )
 
