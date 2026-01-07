@@ -428,18 +428,22 @@ async def send_notifications(
     # Send startup message
     await notifier.send_startup_message()
 
-    # Send actionable signals
-    all_signals = (
+    # Send actionable signals (BUY, SELL, alerts)
+    actionable_signals = (
         summary.buy_signals +
         summary.sell_signals +
         summary.support_alerts +
         summary.resistance_alerts
     )
 
-    for signal in all_signals:
+    for signal in actionable_signals:
         if signal.is_actionable(min_confidence):
             await notifier.send_signal(signal)
             alerts_sent += 1
+
+    # Send HOLD signals as individual messages too (full details)
+    for signal in summary.hold_signals:
+        await notifier.send_signal(signal)
 
     # Send daily summary
     if send_summary:
