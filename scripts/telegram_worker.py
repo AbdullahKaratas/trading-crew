@@ -214,11 +214,40 @@ def format_knockout_result(symbol: str, direction: str, result: dict, stock_data
 
     leverage = min(10, max(2, int(100 / distance)))
 
+    # Detect recommendation from analysis
+    decision_upper = decision.upper()[:500]
+    is_de = lang == "de"
+
+    if direction == "long":
+        # For LONG: BUY = ✅ empfohlen, SELL = ❌ nicht empfohlen
+        if "BUY" in decision_upper or "KAUFEN" in decision_upper:
+            signal_emoji = "✅"
+            signal_text = "EMPFOHLEN" if is_de else "RECOMMENDED"
+        elif "SELL" in decision_upper or "VERKAUFEN" in decision_upper:
+            signal_emoji = "❌"
+            signal_text = "NICHT EMPFOHLEN" if is_de else "NOT RECOMMENDED"
+        else:
+            signal_emoji = "⚠️"
+            signal_text = "NEUTRAL" if is_de else "NEUTRAL"
+    else:
+        # For SHORT: SELL = ✅ empfohlen, BUY = ❌ nicht empfohlen
+        if "SELL" in decision_upper or "VERKAUFEN" in decision_upper or "SHORT" in decision_upper:
+            signal_emoji = "✅"
+            signal_text = "EMPFOHLEN" if is_de else "RECOMMENDED"
+        elif "BUY" in decision_upper or "KAUFEN" in decision_upper:
+            signal_emoji = "❌"
+            signal_text = "NICHT EMPFOHLEN" if is_de else "NOT RECOMMENDED"
+        else:
+            signal_emoji = "⚠️"
+            signal_text = "NEUTRAL" if is_de else "NEUTRAL"
+
     # No truncation - send_telegram_message handles long texts automatically
 
     response = f"""
 {emoji} *{direction.upper()} KNOCKOUT: {symbol}*
 _{stock_data['name']}_
+
+{signal_emoji} *TL;DR: {direction.upper()} {signal_text}*
 
 💵 *Kurs:* {stock_data['currency']} {price:,.2f}
 
