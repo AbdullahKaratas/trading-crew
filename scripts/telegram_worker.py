@@ -232,29 +232,6 @@ _{stock_data['name']}_
     return response.strip()
 
 
-def translate_to_german(text: str) -> str:
-    """Translate analysis text to German using Gemini Flash (fast & cheap)."""
-    import google.generativeai as genai
-
-    try:
-        genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-        model = genai.GenerativeModel("gemini-2.0-flash")
-
-        prompt = f"""Translate the following stock analysis to German.
-Keep all numbers, ticker symbols, and technical terms intact.
-Maintain the markdown formatting (headers, bullet points).
-Be concise but accurate.
-
-Text to translate:
-{text}"""
-
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"Translation failed: {e}")
-        return text  # Return original if translation fails
-
-
 def run_analysis(symbol: str, lang: str = "en") -> dict:
     """Run TradingAgents analysis."""
     from tradingagents.default_config import DEFAULT_CONFIG
@@ -263,23 +240,19 @@ def run_analysis(symbol: str, lang: str = "en") -> dict:
     config = DEFAULT_CONFIG.copy()
     config.update({
         "llm_provider": "mixed",
-        "quick_think_llm": "gemini-2.0-flash",
+        "quick_think_llm": "gemini-2.5-flash-preview-05-20",
         "deep_think_llm": "claude-opus-4-5-20251101",
-        "deep_think_fallback": "gemini-2.5-pro",
+        "deep_think_fallback": "gemini-2.5-pro-preview-06-05",
         "max_debate_rounds": 2,
         "max_risk_discuss_rounds": 1,
+        "output_language": lang,  # Pass language to generate output directly in target language
     })
 
     ta = TradingAgentsGraph(debug=False, config=config)
     today = date.today().isoformat()
-    final_state, decision = ta.propagate(symbol, today)
 
-    # Translate to German if requested
-    if lang == "de" and final_state.get("final_trade_decision"):
-        print("Translating to German...")
-        final_state["final_trade_decision"] = translate_to_german(
-            final_state["final_trade_decision"]
-        )
+    # Pass language to propagate - model will generate in target language directly
+    final_state, decision = ta.propagate(symbol, today, output_language=lang)
 
     return final_state
 
