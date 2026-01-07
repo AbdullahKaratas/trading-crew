@@ -240,7 +240,7 @@ def run_analysis(symbol: str, lang: str = "en") -> dict:
     config = DEFAULT_CONFIG.copy()
     config.update({
         "llm_provider": "mixed",
-        "quick_think_llm": "gemini-3-flash",
+        "quick_think_llm": "gemini-3-flash-preview",
         "deep_think_llm": "claude-opus-4-5-20251101",
         "deep_think_fallback": "gemini-3-pro-preview",
         "max_debate_rounds": 2,

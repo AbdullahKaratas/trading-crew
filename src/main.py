@@ -101,7 +101,7 @@ def create_trading_agents_config(settings: dict) -> dict:
     if llm_provider == "mixed":
         # Mixed mode: Gemini for analysts, Opus for final decision
         config["quick_think_llm"] = settings.get("llm", {}).get(
-            "quick_think_model", "gemini-3-flash"  # Gemini 3 for analysts
+            "quick_think_model", "gemini-3-flash-preview"  # Gemini 3 for analysts
         )
         config["deep_think_llm"] = settings.get("llm", {}).get(
             "deep_think_model", "claude-opus-4-5-20251101"  # Opus for final
@@ -121,7 +121,7 @@ def create_trading_agents_config(settings: dict) -> dict:
     elif llm_provider == "google":
         # Full Google mode
         config["quick_think_llm"] = settings.get("llm", {}).get(
-            "quick_think_model", "gemini-3-flash"
+            "quick_think_model", "gemini-3-flash-preview"
         )
         config["deep_think_llm"] = settings.get("llm", {}).get(
             "deep_think_model", "gemini-3-pro-preview"
