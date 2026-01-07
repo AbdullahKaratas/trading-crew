@@ -1,59 +1,60 @@
-# Stock Trading Bot - LLM-basierte Trading Empfehlungen
+# Stock Trading Bot - LLM-based Trading Recommendations
 
-Ein automatisiertes Trading-Empfehlungssystem basierend auf Multi-Agent LLM-Analyse mit Claude AI. Das System analysiert täglich eure Watchlist und sendet actionable Trading-Alerts per Telegram.
+An automated trading recommendation system based on Multi-Agent LLM analysis with Claude AI and Gemini. The system analyzes your watchlist daily and sends actionable trading alerts via Telegram.
 
-## Was macht das System?
+## What Does the System Do?
 
-Der Bot führt täglich um 14:00 CET (1 Stunde vor US Market Open) eine umfassende Analyse eurer Watchlist durch:
+The bot runs a comprehensive analysis of your watchlist daily at 14:30 CET (1 hour before US Market Open):
 
-1. **Multi-Agent Analyse** - Verschiedene spezialisierte KI-Agenten analysieren jeden Ticker:
-   - Fundamental Analyst (Bewertung, Finanzkennzahlen)
-   - Technical Analyst (Charts, Indikatoren, Levels)
-   - Sentiment Analyst (Marktstimmung, Social Signals)
-   - News Analyst (Breaking News, Events)
+1. **Multi-Agent Analysis** - Different specialized AI agents analyze each ticker:
+   - Fundamental Analyst (valuation, financial metrics)
+   - Technical Analyst (charts, indicators, levels)
+   - Sentiment Analyst (market mood, social signals)
+   - News Analyst (breaking news, events)
 
-2. **Bull vs Bear Debate** - Zwei KI-Researcher debattieren über das Investment:
-   - Bull Researcher argumentiert FÜR den Kauf
-   - Bear Researcher argumentiert GEGEN den Kauf
-   - Mehrere Debattenrunden für ausgewogene Perspektive
+2. **Bull vs Bear Debate** - Two AI researchers debate the investment:
+   - Bull Researcher argues FOR buying
+   - Bear Researcher argues AGAINST buying
+   - Multiple debate rounds for balanced perspective
 
-3. **Finale Entscheidung** - Ein Trader-Agent trifft die finale Entscheidung:
-   - Signal-Typ (BUY/SELL/HOLD)
-   - Entry Zone, Targets, Stop-Loss
-   - Confidence Score
-   - Risk Management Review
+3. **Final Decision** - A Trader agent makes the final decision:
+   - Signal type (BUY/SELL/HOLD)
+   - Entry zone, targets, stop-loss
+   - Confidence score
+   - Risk management review
 
-4. **Telegram Alerts** - Bei relevanten Signalen erhaltet ihr eine Benachrichtigung mit allen Details.
+4. **Telegram Alerts** - You receive a notification with all details for relevant signals.
 
 ```
-WICHTIGER HINWEIS - DISCLAIMER
+IMPORTANT DISCLAIMER
 
-Dieses System ist nur für Bildungs- und Forschungszwecke.
-Es stellt KEINE Finanzberatung dar.
+This system is for educational and research purposes only.
+It does NOT constitute financial advice.
 
-- Vergangene Performance garantiert keine zukünftigen Ergebnisse
-- Trading birgt erhebliche Verlustrisiken
-- Investiere nur Geld, dessen Verlust du dir leisten kannst
-- Konsultiere einen Finanzberater für echte Anlageentscheidungen
+- Past performance does not guarantee future results
+- Trading involves significant risk of loss
+- Only invest money you can afford to lose
+- Consult a financial advisor for real investment decisions
 
-Die Entwickler übernehmen keine Haftung für finanzielle Verluste.
+The developers assume no liability for financial losses.
 ```
 
 ## Features
 
-- **Multi-Agent LLM Analyse** mit Claude Haiku (schnell) und Opus (präzise)
-- **Bull vs Bear Debate** für ausgewogene Perspektiven
-- **Technische Analyse** mit MACD, RSI, Support/Resistance
-- **News & Sentiment** Integration
-- **Risk Management** Review für jede Empfehlung
-- **Telegram Alerts** mit Entry, Targets, Stop-Loss
-- **Automatische Ausführung** via GitHub Actions (kostenlos)
+- **Multi-Agent LLM Analysis** with Gemini Flash (fast) and Claude Opus (precise)
+- **Bull vs Bear Debate** for balanced perspectives
+- **Technical Analysis** with MACD, RSI, Support/Resistance
+- **News & Sentiment** integration
+- **Risk Management** review for each recommendation
+- **Telegram Alerts** with entry, targets, stop-loss
+- **Automatic Execution** via GitHub Actions (free)
+- **Automatic Fallback** - If Opus credits run out, falls back to Gemini Pro
 
-## Architektur
+## Architecture
 
 ```
 +-----------------------------------------------------+
-|           GitHub Actions (14:00 CET)                |
+|           GitHub Actions (14:30 CET)                |
 +----------------------+------------------------------+
                        |
                        v
@@ -61,161 +62,161 @@ Die Entwickler übernehmen keine Haftung für finanzielle Verluste.
 |              Multi-Agent Analysis                   |
 |                                                     |
 |  +---------------------------------------------+   |
-|  |           ANALYST TEAM (Haiku)              |   |
+|  |         ANALYST TEAM (Gemini Flash)         |   |
 |  |  - Fundamental  - Technical                 |   |
 |  |  - Sentiment    - News                      |   |
 |  +---------------------------------------------+   |
 |                       |                             |
 |                       v                             |
 |  +---------------------------------------------+   |
-|  |         RESEARCHER TEAM (Haiku)             |   |
-|  |       Bull vs Bear Debate                   |   |
+|  |       RESEARCHER TEAM (Gemini Flash)        |   |
+|  |         Bull vs Bear Debate                 |   |
 |  +---------------------------------------------+   |
 |                       |                             |
 |                       v                             |
 |  +---------------------------------------------+   |
-|  |        TRADER + RISK MGMT (Opus)            |   |
-|  |         Final Decision + Levels             |   |
+|  |      TRADER + RISK MGMT (Claude Opus)       |   |
+|  |       Final Decision + Levels               |   |
 |  +---------------------------------------------+   |
 +----------------------+------------------------------+
                        |
                        v
 +-----------------------------------------------------+
-|              Telegram Bot                           |
-|          Alerts an euer Handy                       |
-+-----------------------------------------------------+
-                       |
-                       v
-+-----------------------------------------------------+
-|           Ihr entscheidet + Trade Republic          |
+|                  Telegram Bot                       |
+|              Alerts to your phone                   |
 +-----------------------------------------------------+
 ```
 
-## Voraussetzungen
+## Prerequisites
 
 - **Python 3.11+**
-- **GitHub Account** (für automatische Ausführung)
-- **Telegram Account** (für Alerts)
+- **GitHub Account** (for automatic execution)
+- **Telegram Account** (for alerts)
 - **API Keys:**
-  - Anthropic Claude API (erforderlich)
-  - Alpha Vantage (kostenlos)
+  - Anthropic Claude API (required)
+  - Google Gemini API (required)
+  - Alpha Vantage (free)
 
-## Setup-Anleitung
+## Setup Guide
 
-### 1. Repository klonen
+### 1. Clone Repository
 
 ```bash
-git clone https://github.com/DEIN_USERNAME/stock-trading-bot-recommendations.git
-cd stock-trading-bot-recommendations
+git clone https://github.com/YOUR_USERNAME/trading-crew.git
+cd trading-crew
 ```
 
-### 2. Python Environment erstellen
+### 2. Create Python Environment
 
 ```bash
-# Virtual Environment erstellen
+# Create virtual environment
 python -m venv venv
 
-# Aktivieren
+# Activate
 source venv/bin/activate  # Linux/Mac
-# oder
+# or
 venv\Scripts\activate     # Windows
 
-# Dependencies installieren
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. API Keys holen
+### 3. Get API Keys
 
-#### Claude API (erforderlich)
-1. Gehe zu https://console.anthropic.com
-2. Erstelle einen Account oder logge dich ein
-3. Navigiere zu "API Keys"
-4. Erstelle einen neuen API Key
-5. Kopiere den Key (beginnt mit `sk-ant-...`)
+#### Claude API (required)
+1. Go to https://console.anthropic.com
+2. Create an account or log in
+3. Navigate to "API Keys"
+4. Create a new API key
+5. Copy the key (starts with `sk-ant-...`)
 
-#### Alpha Vantage (kostenlos)
-1. Gehe zu https://www.alphavantage.co/support/#api-key
-2. Fülle das Formular aus
-3. Du erhältst sofort einen kostenlosen API Key
-4. Free Tier: 25 Requests/Tag (reicht mit Caching)
+#### Google Gemini API (required)
+1. Go to https://aistudio.google.com/app/apikey
+2. Create an API key
+3. Copy the key
 
-#### Finnhub (optional, für erweiterte News)
-1. Gehe zu https://finnhub.io/register
-2. Erstelle einen kostenlosen Account
-3. Kopiere den API Key aus dem Dashboard
+#### Alpha Vantage (free)
+1. Go to https://www.alphavantage.co/support/#api-key
+2. Fill out the form
+3. You'll receive a free API key immediately
+4. Free tier: 25 requests/day (sufficient with caching)
 
-### 4. Telegram Bot erstellen
+### 4. Create Telegram Bot
 
 ```
-1. Öffne Telegram und suche nach @BotFather
-2. Starte einen Chat und sende /newbot
-3. Wähle einen Namen für deinen Bot (z.B. "Stock Trading Alerts")
-4. Wähle einen Username (z.B. "mein_trading_bot")
-5. Du erhältst einen Token - KOPIERE DIESEN!
+1. Open Telegram and search for @BotFather
+2. Start a chat and send /newbot
+3. Choose a name for your bot (e.g., "Stock Trading Alerts")
+4. Choose a username (e.g., "my_trading_bot")
+5. You'll receive a token - COPY THIS!
    Format: 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
 ```
 
-**Chat ID holen:**
+**Get Chat ID:**
 ```
-1. Starte deinen neuen Bot (suche ihn und klicke "Start")
-2. Sende eine beliebige Nachricht an den Bot
-3. Öffne im Browser:
-   https://api.telegram.org/bot<DEIN_TOKEN>/getUpdates
-4. Suche im JSON nach "chat":{"id": DEINE_CHAT_ID}
-5. Die Chat ID ist eine Zahl (kann negativ sein für Gruppen)
+1. Start your new bot (search for it and click "Start")
+2. Send any message to the bot
+3. Open in browser:
+   https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
+4. Find "chat":{"id": YOUR_CHAT_ID} in the JSON
+5. The Chat ID is a number (can be negative for groups)
 ```
 
-### 5. Environment Datei erstellen
+### 5. Create Environment File
 
 ```bash
-# Template kopieren
+# Copy template
 cp .env.example .env
 
-# .env bearbeiten und Keys eintragen
-nano .env  # oder vim, code, etc.
+# Edit .env and add keys
+nano .env  # or vim, code, etc.
 ```
 
-Fülle folgende Werte aus:
+Fill in the following values:
 ```bash
 ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
+GOOGLE_API_KEY=AIzaSyXXXXX
 ALPHA_VANTAGE_API_KEY=xxxxx
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
 TELEGRAM_CHAT_ID=123456789
 ```
 
-### 6. Lokal testen
+### 6. Test Locally
 
 ```bash
-# Einzelne Aktie testen (ohne Telegram)
-python -m src.main --symbol APLD --dry-run
+# Test single stock (without Telegram)
+python -m src.main --symbol AAPL --dry-run
 
-# Alle Aktien testen (ohne Telegram)
+# Test all stocks (without Telegram)
 python -m src.main --dry-run
 
-# Mit Telegram (sendet echte Nachrichten!)
-python -m src.main --symbol APLD
+# With Telegram (sends real messages!)
+python -m src.main --symbol AAPL
 ```
 
-### 7. GitHub Repository erstellen
+### 7. Create GitHub Repository
 
 ```bash
-# Neues Repository auf GitHub erstellen (via Web UI)
-# Dann:
-git remote add origin https://github.com/DEIN_USERNAME/stock-trading-bot-recommendations.git
+# Create new repository on GitHub (via web UI)
+# Then:
+git remote add origin https://github.com/YOUR_USERNAME/trading-crew.git
 git branch -M main
 git push -u origin main
 ```
 
-### 8. GitHub Secrets konfigurieren
+### 8. Configure GitHub Secrets
 
 ```
-1. Gehe zu deinem Repository auf GitHub
+1. Go to your repository on GitHub
 2. Settings -> Secrets and variables -> Actions
-3. Klicke "New repository secret"
-4. Füge folgende Secrets hinzu:
+3. Click "New repository secret"
+4. Add the following secrets:
 
    Name: ANTHROPIC_API_KEY
    Value: sk-ant-api03-xxxxx
+
+   Name: GOOGLE_API_KEY
+   Value: AIzaSyXXXXX
 
    Name: ALPHA_VANTAGE_API_KEY
    Value: xxxxx
@@ -225,274 +226,238 @@ git push -u origin main
 
    Name: TELEGRAM_CHAT_ID
    Value: 123456789
-
-   (Optional)
-   Name: FINNHUB_API_KEY
-   Value: xxxxx
 ```
 
-### 9. GitHub Actions aktivieren
+### 9. Enable GitHub Actions
 
 ```
-1. Gehe zu deinem Repository -> Actions Tab
-2. Klicke "I understand my workflows, go ahead and enable them"
-3. Der Workflow läuft automatisch Mo-Fr um 14:00 CET
+1. Go to your repository -> Actions tab
+2. Click "I understand my workflows, go ahead and enable them"
+3. The workflow runs automatically Mon-Fri at 14:30 CET
 ```
 
-**Manueller Test-Run:**
+**Manual Test Run:**
 ```
 1. Actions -> "Daily Trading Analysis"
 2. "Run workflow" -> "Run workflow"
-3. Optional: Symbol eingeben für einzelne Aktie
+3. Optional: Enter symbol for single stock
+4. Optional: Enter day override (monday, tuesday, etc.)
 ```
 
-## Konfiguration
+## Configuration
 
-### Watchlist anpassen
+### Customize Watchlist
 
-Bearbeite `config/watchlist.yaml`:
+Edit `config/watchlist.yaml`:
 
 ```yaml
 watchlist:
-  # Eigene Kategorie hinzufügen
-  meine_aktien:
+  # Stocks are rotated by day to save API costs
+  # Monday stocks
+  ai_infrastructure:
     - symbol: NVDA
       name: NVIDIA
+      day: monday
+
+  # Tuesday stocks
+  semiconductors:
     - symbol: AMD
       name: Advanced Micro Devices
-
-  # Bestehende Kategorie erweitern
-  ai_infrastructure:
-    - symbol: APLD
-      name: Applied Digital
-    # Neue Aktie hinzufügen:
-    - symbol: CLSK
-      name: CleanSpark
+      day: tuesday
 ```
 
-### Settings anpassen
+### Customize Settings
 
-Bearbeite `config/settings.yaml`:
+Edit `config/settings.yaml`:
 
 ```yaml
 trading:
-  # Confidence-Schwelle für Alerts (0-100)
-  min_confidence_for_alert: 65  # Höher = weniger Alerts
+  # Confidence threshold for alerts (0-100)
+  min_confidence_for_alert: 65  # Higher = fewer alerts
 
-  # Risiko-Level: conservative, moderate, medium_aggressive, aggressive
+  # Risk level: conservative, moderate, medium_aggressive, aggressive
   risk_level: medium_aggressive
 
 telegram:
-  # Nur Alerts mit Action senden (keine HOLD)
+  # Only send alerts with action (no HOLD)
   only_actionable_signals: true
 
-  # Tägliche Zusammenfassung senden
+  # Send daily summary
   send_daily_summary: true
 
 llm:
-  # Mehr Debate-Runden = gründlichere Analyse, aber mehr Kosten
+  # More debate rounds = more thorough analysis, but higher cost
   max_debate_rounds: 2
+
+  # Primary model for final decisions
+  deep_think_model: "claude-opus-4-5-20251101"
+
+  # Fallback if Opus credits run out
+  deep_think_fallback: "gemini-3-pro-preview"
 ```
 
-## Lokales Testing
+## Local Testing
 
 ```bash
-# Einzelne Aktie analysieren (ohne Telegram)
-python -m src.main --symbol APLD --dry-run
+# Analyze single stock (without Telegram)
+python -m src.main --symbol AAPL --dry-run
 
-# Alle Aktien analysieren (ohne Telegram)
-python -m src.main --dry-run
+# Analyze specific day's stocks
+python -m src.main --days monday --dry-run
 
-# Mit Debug-Logging
-python -m src.main --symbol APLD --log-level DEBUG --dry-run
+# With debug logging
+python -m src.main --symbol AAPL --log-level DEBUG --dry-run
 
-# Tests ausführen
+# Run tests
 pytest tests/ -v
-
-# Tests mit Coverage
-pytest tests/ --cov=src --cov-report=html
 ```
 
-## Telegram Message Formate
+## Telegram Message Formats
 
 ### BUY Signal
 ```
-BUY SIGNAL: APLD (Applied Digital)
+BUY SIGNAL: AAPL (Apple Inc.)
 
-Preis: $8.45
-Entry Zone: $8.30 - $8.50
-Target 1: $9.20 (+9%)
-Target 2: $10.50 (+24%)
-Stop-Loss: $7.80 (-8%)
+Price: $185.45
+Action: BUY 30-40% of position at current levels
 
-Confidence: 78%
-Risk/Reward: 1:3
+Stop-Loss: $175.00 (-6%)
+   Based on recent support level
 
-Technisch:
-- Bullish MACD Crossover
-- RSI: 45 (neutral)
-- Support: $7.80 | Resistance: $10.50
+Targets:
+   - $195.00 (+5%): Take 30% profit
+   - $210.00 (+13%): Take remaining
 
-News: Neuer GPU-Cluster Deal angekündigt
-Sentiment: Positiv (0.65)
+Key Events:
+   - Earnings report Jan 25
+   - Product launch expected Q1
 
-14:12 CET | Pre-Market
-```
+Exit Conditions:
+   - Break below $175 support
+   - Negative earnings surprise
 
-### Support Alert
-```
-SUPPORT ALERT: IREN
+Recommendation:
+Strong technical setup with bullish MACD crossover...
 
-Preis nähert sich kritischem Support!
-
-Aktuell: $12.05
-Support: $11.80 (-2%)
-Resistance: $14.20 (+18%)
-
-Mögliche Aktion:
-- Buy Limit bei $11.85 setzen
-- Stop-Loss unter $11.50
-
-Confidence: 70%
-14:08 CET
+14:30 CET | Pre-Market
 ```
 
 ### Daily Summary
 ```
-DAILY SUMMARY - 02.01.2026
+DAILY SUMMARY - 01/07/2026
 
 BUY Signals: 2
-   - APLD (78%) - AI Infrastructure Momentum
-   - RKLB (71%) - Space Sector Breakout
+   - AAPL - BUY 30% at current levels
+   - MSFT - Scale in below $400
 
 SELL Signals: 1
-   - QBTS (72%) - Bearish Divergence
+   - TSLA - SELL 50% immediately
 
-Support Alerts: 1
-   - IREN near $11.80
+HOLD: 3 stocks
 
-HOLD: 10 Aktien
-   - Keine klaren Signale
+Top Pick: AAPL
+   Strong momentum with clear risk/reward
 
-Top Pick: APLD
-   Stärkstes Risk/Reward heute (1:3.0)
-
-Nächste Analyse: Morgen 14:00 CET
+Next analysis: Tomorrow 14:30 CET
 ```
 
-## Projekt-Struktur
+## Project Structure
 
 ```
-stock-trading-bot-recommendations/
-├── README.md                     # Diese Datei
-├── .env.example                  # Template für API Keys
+trading-crew/
+├── README.md                     # This file
+├── .env.example                  # API key template
 ├── .gitignore
 ├── requirements.txt
-├── pyproject.toml
 │
 ├── config/
-│   ├── watchlist.yaml           # Aktien-Watchlist
-│   └── settings.yaml            # Bot-Einstellungen
+│   ├── watchlist.yaml           # Stock watchlist (by day)
+│   └── settings.yaml            # Bot settings
 │
-├── TradingAgents/               # TradingAgents Framework (geklont)
-│   ├── tradingagents/           # Multi-Agent System
-│   │   ├── agents/              # Analyst, Researcher, Trader Agents
-│   │   ├── graph/               # LangGraph Workflow
-│   │   └── dataflows/           # Daten-Integration
+├── TradingAgents/               # TradingAgents Framework
+│   ├── tradingagents/           # Multi-agent system
+│   │   ├── agents/              # Analyst, Researcher, Trader agents
+│   │   ├── graph/               # LangGraph workflow
+│   │   └── dataflows/           # Data integration
 │   └── ...
 │
 ├── src/
-│   ├── __init__.py
-│   ├── main.py                  # Entry Point (nutzt TradingAgents)
-│   │
+│   ├── main.py                  # Entry point
 │   ├── analysis/
-│   │   ├── __init__.py
-│   │   └── signals.py           # Signal-Datenklassen
-│   │
+│   │   └── signals.py           # Signal data classes
 │   ├── notifications/
-│   │   ├── __init__.py
-│   │   ├── telegram_bot.py      # Telegram Integration
-│   │   └── formatters.py        # Message Formatting
-│   │
+│   │   ├── telegram_bot.py      # Telegram integration
+│   │   └── formatters.py        # Message formatting
 │   └── utils/
-│       ├── __init__.py
-│       ├── logger.py            # Structured Logging
-│       └── market_hours.py      # US Market Hours
-│
-├── tests/
-│   └── ...
+│       ├── logger.py            # Structured logging
+│       └── market_hours.py      # US market hours
 │
 └── .github/
     └── workflows/
-        └── trading_analysis.yml  # GitHub Actions Cron
+        └── trading_analysis.yml  # GitHub Actions cron
 ```
-
-**Hinweis:** Das `TradingAgents/` Verzeichnis enthält das Framework von
-[TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents).
-Wir nutzen es mit Claude statt OpenAI.
 
 ## Troubleshooting
 
 ### "ANTHROPIC_API_KEY not set"
-- Prüfe ob `.env` Datei existiert
-- Prüfe ob der Key korrekt kopiert wurde (keine Leerzeichen)
-- Bei GitHub Actions: Prüfe ob Secret korrekt angelegt wurde
+- Check if `.env` file exists
+- Check if the key was copied correctly (no spaces)
+- For GitHub Actions: Check if secret is correctly configured
 
 ### "Telegram connection failed"
-- Prüfe Bot Token (muss mit Zahl beginnen, dann `:`)
-- Prüfe Chat ID (muss eine Zahl sein)
-- Stelle sicher, dass du dem Bot eine Nachricht gesendet hast
+- Check bot token (must start with number, then `:`)
+- Check chat ID (must be a number)
+- Make sure you sent a message to the bot first
 
 ### "No data returned for SYMBOL"
-- Symbol könnte nicht existieren oder falsch geschrieben sein
-- Manche Symbole (z.B. `.V` für Venture) funktionieren evtl. nicht
-- Prüfe das Symbol auf finance.yahoo.com
+- Symbol might not exist or be misspelled
+- Some symbols (e.g., `.V` for Venture) might not work
+- Verify the symbol on finance.yahoo.com
 
 ### "Rate limit exceeded"
-- Alpha Vantage Free Tier: 25 requests/day
-- Warte bis zum nächsten Tag oder upgrade den Plan
-- Caching ist aktiviert, sollte normalerweise reichen
+- Alpha Vantage free tier: 25 requests/day
+- Wait until the next day or upgrade the plan
+- Caching is enabled, should normally be sufficient
 
-### GitHub Actions läuft nicht
-- Prüfe ob Actions aktiviert sind (Repository -> Actions)
-- Prüfe ob Secrets korrekt angelegt sind
-- Schaue in die Workflow Logs für Fehler
+### GitHub Actions not running
+- Check if Actions are enabled (Repository -> Actions)
+- Check if secrets are correctly configured
+- Check the workflow logs for errors
 
-## Kosten-Übersicht
+## Cost Overview
 
-| Service | Kosten |
-|---------|--------|
-| GitHub Actions | $0 (2000 min/Monat free) |
-| Claude API | ~$5-15/Tag je nach Watchlist-Größe |
-| Alpha Vantage | $0 (Free Tier reicht) |
+| Service | Cost |
+|---------|------|
+| GitHub Actions | $0 (2000 min/month free) |
+| Claude Opus API | ~$0.50-2/analysis |
+| Gemini Flash API | ~$0.01/analysis |
+| Alpha Vantage | $0 (free tier) |
 | Telegram | $0 |
-| **Geschätzt Total** | **~$150-450/Monat** |
+| **Estimated Total** | **~$30-100/month** |
 
-**Kosten-Faktoren:**
-- Anzahl Aktien in der Watchlist
-- Anzahl Debate-Runden
-- Haiku ist günstig (~$0.25/1M input tokens)
-- Opus ist teurer (~$15/1M input tokens)
+**Cost Factors:**
+- Number of stocks in watchlist
+- Number of debate rounds
+- Gemini Flash is very cheap
+- Opus is used only for final decisions
 
-## Weiterentwicklung
+## Credits
 
-Ideen für Erweiterungen:
-- [ ] Backtesting der Signale
-- [ ] Performance-Tracking Dashboard
-- [ ] Intraday-Alerts bei starken Bewegungen
-- [ ] Integration mit Trade Republic API (wenn verfügbar)
-- [ ] Discord/Slack Integration
-- [ ] Web Dashboard für Signal-Historie
+This project is based on the [TradingAgents Framework](https://github.com/TauricResearch/TradingAgents) by TauricResearch.
+
+## License
+
+Apache 2.0 - See LICENSE file for details.
 
 ## Support
 
-Bei Fragen oder Problemen:
-1. Prüfe die Troubleshooting-Sektion oben
-2. Schaue in die GitHub Actions Logs
-3. Erstelle ein Issue im Repository
+For questions or issues:
+1. Check the troubleshooting section above
+2. Look at the GitHub Actions logs
+3. Create an issue in the repository
 
 ---
 
-**Viel Erfolg beim Trading!**
+**Good luck with your trading!**
 
-*Remember: Das System gibt Empfehlungen - die finale Entscheidung liegt immer bei euch.*
+*Remember: The system provides recommendations - the final decision is always yours.*

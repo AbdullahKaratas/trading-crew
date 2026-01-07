@@ -8,9 +8,9 @@ setup(
     name="tradingagents",
     version="0.1.0",
     description="Multi-Agents LLM Financial Trading Framework",
-    author="TradingAgents Team",
-    author_email="yijia.xiao@cs.ucla.edu",
-    url="https://github.com/TauricResearch",
+    author="TradingAgents Community (Original: TauricResearch)",
+    author_email="",
+    url="https://github.com/TauricResearch/TradingAgents",
     packages=find_packages(),
     install_requires=[
         "langchain>=0.1.0",
