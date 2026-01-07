@@ -40,15 +40,30 @@ Guidelines for Decision-Making:
 Deliverables:
 - A clear and actionable recommendation: Buy, Sell, or Hold.
 - Detailed reasoning anchored in the debate and past reflections.
+- **REQUIRED - Action Box**: At the END of your response, include a clearly formatted action box with specific prices:
+
+```
+📋 ACTION BOX
+━━━━━━━━━━━━━━━━━━━━
+Signal: [BUY/SELL/HOLD]
+Entry: $XX.XX (ideal entry price)
+Stop-Loss: $XX.XX (-X.X%)
+Target 1: $XX.XX (+X.X%)
+Target 2: $XX.XX (+X.X%)
+Risk/Reward: X.X:1
+━━━━━━━━━━━━━━━━━━━━
+```
+
+Base these prices on the technical analysis, support/resistance levels, and risk management principles discussed in the debate. The entry price should be a realistic price point based on current market conditions, not the current price.
 
 ---
 
-**Analysts Debate History:**  
+**Analysts Debate History:**
 {history}
 
 ---
 
-Focus on actionable insights and continuous improvement. Build on past lessons, critically evaluate all perspectives, and ensure each decision advances better outcomes."""
+Focus on actionable insights and continuous improvement. Build on past lessons, critically evaluate all perspectives, and ensure each decision advances better outcomes. Always end with the ACTION BOX containing specific price levels."""
 
         response = llm.invoke(prompt)
 
