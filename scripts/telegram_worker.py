@@ -22,21 +22,44 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 
 
 def send_telegram_message(chat_id: str, text: str) -> bool:
-    """Send a message to Telegram."""
+    """Send a message to Telegram. Splits long messages automatically."""
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     url = f"https://api.telegram.org/bot{token}/sendMessage"
 
-    # Telegram has a 4096 character limit
-    if len(text) > 4000:
-        text = text[:3997] + "..."
+    # Telegram has a 4096 character limit - split if needed
+    max_len = 4000
+    messages = []
 
-    response = requests.post(url, json={
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": True,
-    })
-    return response.ok
+    if len(text) <= max_len:
+        messages = [text]
+    else:
+        # Split at newlines to avoid cutting words
+        parts = text.split('\n')
+        current = ""
+        for part in parts:
+            if len(current) + len(part) + 1 <= max_len:
+                current += part + '\n'
+            else:
+                if current:
+                    messages.append(current.strip())
+                current = part + '\n'
+        if current:
+            messages.append(current.strip())
+
+    success = True
+    for i, msg in enumerate(messages):
+        response = requests.post(url, json={
+            "chat_id": chat_id,
+            "text": msg,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": True,
+        })
+        success = success and response.ok
+        if len(messages) > 1 and i < len(messages) - 1:
+            import time
+            time.sleep(0.5)  # Small delay between messages
+
+    return success
 
 
 def get_stock_data(symbol: str) -> dict:
@@ -103,9 +126,7 @@ def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: f
         signal = "HOLD" if lang == "en" else "HALTEN"
         emoji = "🟡"
 
-    # Truncate decision
-    if len(decision) > 900:
-        decision = decision[:900] + "..."
+    # No truncation - send_telegram_message handles long texts automatically
 
     # Language-specific labels
     if lang == "en":
@@ -193,9 +214,7 @@ def format_knockout_result(symbol: str, direction: str, result: dict, stock_data
 
     leverage = min(10, max(2, int(100 / distance)))
 
-    # Truncate decision
-    if len(decision) > 800:
-        decision = decision[:800] + "..."
+    # No truncation - send_telegram_message handles long texts automatically
 
     response = f"""
 {emoji} *{direction.upper()} KNOCKOUT: {symbol}*
@@ -223,7 +242,7 @@ _{stock_data['name']}_
 
     response += f"""
 💡 *Analyse:*
-{decision[:500]}...
+{decision}
 
 ⚠️ *Risiko:* Bei KO = Totalverlust!
 
