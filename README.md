@@ -312,6 +312,48 @@ python -m src.main --symbol AAPL --log-level DEBUG --dry-run
 pytest tests/ -v
 ```
 
+## Interactive Mode (On-Demand Analysis)
+
+Instead of scheduled daily analysis, you can run an interactive Telegram bot that responds to commands:
+
+```bash
+# Start interactive bot
+python -m src.main --interactive
+```
+
+### Available Commands
+
+| Command | Example | Description |
+|---------|---------|-------------|
+| `/analyze` | `/analyze AAPL` | Analyze a single stock |
+| `/analyze` | `/analyze AAPL 5000` | Analyze with budget (EUR) for position sizing |
+| `/long` | `/long NVDA 1000` | Long knockout certificate analysis |
+| `/short` | `/short TSLA 500` | Short knockout certificate analysis |
+| `/compare` | `/compare AAPL MSFT` | Compare two stocks |
+| `/portfolio` | `/portfolio AAPL:5000 MSFT:3000` | Set your portfolio (amounts in EUR) |
+| `/profile` | `/profile aggressive` | Set risk profile (conservative/moderate/aggressive/yolo) |
+| `/risk` | `/risk` | Portfolio risk assessment |
+| `/help` | `/help` | Show all commands |
+
+### Risk Profiles
+
+| Profile | Sector Max | Leverage Max | Stop-Loss |
+|---------|-----------|--------------|-----------|
+| `conservative` | 40% | 2x | 5% |
+| `moderate` | 60% | 5x | 8% |
+| `aggressive` | 80% | 10x | 15% |
+| `yolo` | 100% | 20x | 25% |
+
+### Example Workflow
+
+1. Start the bot: `python -m src.main --interactive`
+2. Send `/start` to your Telegram bot
+3. Set your risk profile: `/profile aggressive`
+4. Set your portfolio: `/portfolio AAPL:5000 NVDA:3000`
+5. Check portfolio risk: `/risk`
+6. Analyze a new stock: `/analyze MSFT 2000`
+7. Get knockout analysis: `/long MSFT 1000`
+
 ## Telegram Message Formats
 
 ### BUY Signal

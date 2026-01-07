@@ -512,7 +512,68 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated days to analyze (e.g., 'monday,tuesday')",
     )
 
+    parser.add_argument(
+        "--interactive",
+        "-i",
+        action="store_true",
+        help="Run interactive Telegram bot (responds to commands)",
+    )
+
     return parser.parse_args()
+
+
+def run_interactive_mode(args, logger) -> int:
+    """Run the interactive Telegram bot mode."""
+    from .bot import InteractiveTradingBot
+
+    # Validate Telegram token
+    if not os.getenv("TELEGRAM_BOT_TOKEN"):
+        logger.error("missing_telegram_token")
+        print("Error: TELEGRAM_BOT_TOKEN is required for interactive mode")
+        return 1
+
+    # Load config for TradingAgents
+    config_dir = Path(args.config_dir)
+    try:
+        settings, _ = load_config(config_dir, filter_by_day=False)
+    except Exception as e:
+        logger.error("config_load_error", error=str(e))
+        print(f"Error loading config: {e}")
+        return 1
+
+    # Create TradingAgents config
+    ta_config = create_trading_agents_config(settings)
+
+    logger.info(
+        "starting_interactive_bot",
+        llm_provider=ta_config["llm_provider"],
+        deep_think=ta_config["deep_think_llm"],
+        quick_think=ta_config["quick_think_llm"],
+    )
+
+    print("=" * 60)
+    print("INTERACTIVE TRADING BOT")
+    print("=" * 60)
+    print(f"LLM Provider: {ta_config['llm_provider']}")
+    print(f"Quick Think: {ta_config['quick_think_llm']}")
+    print(f"Deep Think: {ta_config['deep_think_llm']}")
+    print("=" * 60)
+    print("Bot is starting... Send /start to your Telegram bot!")
+    print("Press Ctrl+C to stop")
+    print("=" * 60)
+
+    try:
+        bot = InteractiveTradingBot(config=ta_config)
+        asyncio.run(bot.run())
+        return 0
+    except KeyboardInterrupt:
+        logger.info("interactive_bot_stopped")
+        print("\nBot stopped.")
+        return 0
+    except Exception as e:
+        logger.exception("interactive_bot_error", error=str(e))
+        print(f"Error: {e}")
+        return 1
 
 
 def main() -> int:
@@ -533,6 +594,10 @@ def main() -> int:
 
     logger = get_logger("main")
     logger.info("starting", args=vars(args))
+
+    # Handle interactive mode
+    if args.interactive:
+        return run_interactive_mode(args, logger)
 
     # Validate required environment variables
     required_vars = ["ANTHROPIC_API_KEY", "ALPHA_VANTAGE_API_KEY"]
