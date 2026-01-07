@@ -38,8 +38,8 @@ signals:
 llm:
   # Provider mode: "mixed" (Gemini + Opus), "anthropic" (all Claude), "google" (all Gemini)
   provider: "mixed"
-  # Gemini 3 Flash Preview for fast tasks (analysts, data retrieval) - cheaper!
-  quick_think_model: "gemini-3-flash-preview"
+  # Gemini 3 Flash for fast tasks (analysts, data retrieval) - cheaper!
+  quick_think_model: "gemini-3-flash"
   # Claude Opus for final decisions and debates - best reasoning!
   deep_think_model: "claude-opus-4-5-20251101"
   # Fallback model if Opus credits run out (Gemini Pro as backup)

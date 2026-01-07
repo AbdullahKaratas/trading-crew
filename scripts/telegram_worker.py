@@ -240,9 +240,9 @@ def run_analysis(symbol: str, lang: str = "en") -> dict:
     config = DEFAULT_CONFIG.copy()
     config.update({
         "llm_provider": "mixed",
-        "quick_think_llm": "gemini-2.5-flash-preview-05-20",
+        "quick_think_llm": "gemini-3-flash",
         "deep_think_llm": "claude-opus-4-5-20251101",
-        "deep_think_fallback": "gemini-2.5-pro-preview-06-05",
+        "deep_think_fallback": "gemini-3-pro-preview",
         "max_debate_rounds": 2,
         "max_risk_discuss_rounds": 1,
         "output_language": lang,  # Pass language to generate output directly in target language
