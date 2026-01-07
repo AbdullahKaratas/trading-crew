@@ -280,8 +280,145 @@ _{stock_data['name']}_
     return response.strip()
 
 
+def is_commodity(symbol: str) -> bool:
+    """Check if symbol is a commodity/futures (ends with =F)."""
+    return symbol.endswith("=F")
+
+
+def get_commodity_name(symbol: str) -> str:
+    """Get human-readable commodity name."""
+    commodity_map = {
+        "SI=F": "Silver",
+        "GC=F": "Gold",
+        "CL=F": "Crude Oil WTI",
+        "BZ=F": "Brent Crude Oil",
+        "NG=F": "Natural Gas",
+        "HG=F": "Copper",
+        "PL=F": "Platinum",
+        "PA=F": "Palladium",
+        "ZC=F": "Corn",
+        "ZW=F": "Wheat",
+        "ZS=F": "Soybeans",
+    }
+    return commodity_map.get(symbol, symbol.replace("=F", " Futures"))
+
+
+def run_commodity_analysis(symbol: str, lang: str = "en") -> dict:
+    """Run commodity analysis using Gemini with Google Search grounding."""
+    import google.generativeai as genai
+
+    genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+
+    commodity_name = get_commodity_name(symbol)
+    today = date.today().isoformat()
+
+    # Language-specific prompt
+    if lang == "de":
+        prompt = f"""Du bist ein erfahrener Rohstoff-Analyst. Analysiere {commodity_name} ({symbol}) für heute ({today}).
+
+WICHTIG: Nutze Google Search um aktuelle Informationen zu finden!
+
+Recherchiere und analysiere:
+
+1. **Aktuelle Marktsituation**
+   - Aktueller Preis und Tagesentwicklung
+   - Wichtige Preislevel (Support/Resistance)
+   - Technische Indikatoren (Trend, RSI, Moving Averages)
+
+2. **Fundamentale Faktoren**
+   - Angebot & Nachfrage Situation
+   - Lagerbestände / Inventories
+   - Produktionszahlen relevanter Länder
+   - Saisonale Faktoren
+
+3. **Marktbewegende News**
+   - Geopolitische Entwicklungen
+   - Zentralbank-Politik (Fed, EZB)
+   - Wirtschaftsdaten
+   - Wetter/Naturkatastrophen (falls relevant)
+
+4. **Sentiment & Positioning**
+   - COT Report (Commercials vs Speculators)
+   - ETF Flows
+   - Analystenmeinungen
+
+Basierend auf deiner Analyse, gib eine klare Empfehlung:
+
+📋 ACTION BOX
+━━━━━━━━━━━━━━━━━━━━
+Signal: [BUY/SELL/HOLD]
+Entry: $XX.XX (idealer Einstiegspreis)
+Stop-Loss: $XX.XX (-X.X%)
+Target 1: $XX.XX (+X.X%)
+Target 2: $XX.XX (+X.X%)
+Risk/Reward: X.X:1
+━━━━━━━━━━━━━━━━━━━━
+
+Schreibe die GESAMTE Analyse auf Deutsch."""
+    else:
+        prompt = f"""You are an experienced commodity analyst. Analyze {commodity_name} ({symbol}) for today ({today}).
+
+IMPORTANT: Use Google Search to find current information!
+
+Research and analyze:
+
+1. **Current Market Situation**
+   - Current price and daily movement
+   - Key price levels (Support/Resistance)
+   - Technical indicators (Trend, RSI, Moving Averages)
+
+2. **Fundamental Factors**
+   - Supply & Demand situation
+   - Inventories / Stockpiles
+   - Production data from relevant countries
+   - Seasonal factors
+
+3. **Market-Moving News**
+   - Geopolitical developments
+   - Central bank policy (Fed, ECB)
+   - Economic data
+   - Weather/Natural disasters (if relevant)
+
+4. **Sentiment & Positioning**
+   - COT Report (Commercials vs Speculators)
+   - ETF Flows
+   - Analyst opinions
+
+Based on your analysis, provide a clear recommendation:
+
+📋 ACTION BOX
+━━━━━━━━━━━━━━━━━━━━
+Signal: [BUY/SELL/HOLD]
+Entry: $XX.XX (ideal entry price)
+Stop-Loss: $XX.XX (-X.X%)
+Target 1: $XX.XX (+X.X%)
+Target 2: $XX.XX (+X.X%)
+Risk/Reward: X.X:1
+━━━━━━━━━━━━━━━━━━━━"""
+
+    # Use Gemini with Google Search grounding
+    model = genai.GenerativeModel(
+        "gemini-2.0-flash",  # 2.0-flash supports Google Search grounding
+        tools="google_search_retrieval"
+    )
+
+    response = model.generate_content(prompt)
+
+    return {
+        "final_trade_decision": response.text,
+        "commodity_mode": True
+    }
+
+
 def run_analysis(symbol: str, lang: str = "en") -> dict:
-    """Run TradingAgents analysis."""
+    """Run analysis - uses commodity analyzer for futures, TradingAgents for stocks."""
+
+    # Check if this is a commodity/futures symbol
+    if is_commodity(symbol):
+        print(f"Detected commodity: {get_commodity_name(symbol)}")
+        return run_commodity_analysis(symbol, lang)
+
+    # Regular stock analysis with TradingAgents
     from tradingagents.default_config import DEFAULT_CONFIG
 
     # Start with defaults and override LLM settings
