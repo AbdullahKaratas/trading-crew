@@ -110,82 +110,99 @@ def get_stock_data(symbol: str) -> dict:
 
 def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
     """Format analysis result for Telegram with language support."""
-    decision = result.get("final_trade_decision", "")
+    decision_text = result.get("final_trade_decision", "")
+    trade = result.get("trade_decision", {})  # Structured data from JSON
     currency = stock_data['currency']
     price = stock_data['price']
 
-    # Detect signal type
-    decision_upper = decision.upper()[:200]
-    if "BUY" in decision_upper:
-        signal = "BUY" if lang == "en" else "KAUFEN"
-        emoji = "🟢"
-    elif "SELL" in decision_upper or "SHORT" in decision_upper:
-        signal = "SELL" if lang == "en" else "VERKAUFEN"
-        emoji = "🔴"
-    else:
-        signal = "HOLD" if lang == "en" else "HALTEN"
-        emoji = "🟡"
+    # Get signal from structured data (reliable!)
+    signal_raw = trade.get("signal", "HOLD").upper()
+    confidence = trade.get("confidence", 0.5)
 
-    # No truncation - send_telegram_message handles long texts automatically
+    # Map signal to display text and emoji
+    signal_map = {
+        "BUY": ("🟢", "BUY" if lang == "en" else "KAUFEN"),
+        "SELL": ("🔴", "SELL" if lang == "en" else "VERKAUFEN"),
+        "HOLD": ("🟡", "HOLD" if lang == "en" else "HALTEN"),
+    }
+    emoji, signal = signal_map.get(signal_raw, ("🟡", "HOLD"))
+
+    # Get prices from structured data (LLM-provided!)
+    entry_price = trade.get("entry_price", 0)
+    stop_loss_price = trade.get("stop_loss_price", 0)
+    stop_loss_pct = trade.get("stop_loss_pct", 0)
+    target_1 = trade.get("target_1_price", 0)
+    target_1_pct = trade.get("target_1_pct", 0)
+    target_2 = trade.get("target_2_price", 0)
+    target_2_pct = trade.get("target_2_pct", 0)
+    risk_reward = trade.get("risk_reward_ratio", 0)
 
     # Language-specific labels
     if lang == "en":
         labels = {
             "price": "Price",
-            "levels": "Key Levels",
-            "support": "Support",
-            "resistance": "Resistance",
-            "entry_zone": "Entry Zone",
-            "week52": "52W Range",
+            "confidence": "Confidence",
+            "action_box": "Action Box",
+            "entry": "Entry",
+            "stop_loss": "Stop-Loss",
+            "target": "Target",
+            "risk_reward": "Risk/Reward",
             "analysis": "Analysis",
             "position": "Position",
             "recommended": "Recommended",
             "max_risk": "Max Risk",
-            "stop_loss": "Stop-Loss",
         }
     else:
         labels = {
             "price": "Kurs",
-            "levels": "Wichtige Levels",
-            "support": "Support",
-            "resistance": "Widerstand",
-            "entry_zone": "Einstiegszone",
-            "week52": "52W Bereich",
+            "confidence": "Konfidenz",
+            "action_box": "Aktionsbox",
+            "entry": "Einstieg",
+            "stop_loss": "Stop-Loss",
+            "target": "Ziel",
+            "risk_reward": "Risiko/Chance",
             "analysis": "Analyse",
             "position": "Position",
             "recommended": "Empfohlen",
             "max_risk": "Max Risiko",
-            "stop_loss": "Stop-Loss",
         }
+
+    # Confidence bar visualization
+    conf_bars = int(confidence * 10)
+    conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
 
     response = f"""
 {emoji} *{signal}: {symbol}*
 _{stock_data['name']}_
 
 💵 *{labels['price']}:* {currency} {price:,.2f}
+📊 *{labels['confidence']}:* {conf_display} {confidence:.0%}
 
-📍 *{labels['levels']}:*
-├── {labels['support']} 1: {currency} {stock_data['support_1']:,.2f}
-├── {labels['support']} 2: {currency} {stock_data['support_2']:,.2f}
-├── {labels['resistance']} 1: {currency} {stock_data['resistance_1']:,.2f}
-├── {labels['resistance']} 2: {currency} {stock_data['resistance_2']:,.2f}
-├── 🎯 {labels['entry_zone']}: {currency} {stock_data['entry_zone_low']:,.2f} - {stock_data['entry_zone_high']:,.2f}
-└── {labels['week52']}: {currency} {stock_data['week_52_low']:,.2f} - {stock_data['week_52_high']:,.2f}
+📋 *{labels['action_box']}:*
+├── {labels['entry']}: {currency} {entry_price:,.2f}
+├── {labels['stop_loss']}: {currency} {stop_loss_price:,.2f} ({stop_loss_pct:+.1f}%)
+├── {labels['target']} 1: {currency} {target_1:,.2f} ({target_1_pct:+.1f}%)
+├── {labels['target']} 2: {currency} {target_2:,.2f} ({target_2_pct:+.1f}%)
+└── {labels['risk_reward']}: {risk_reward:.1f}:1
 
 📊 *{labels['analysis']}:*
-{decision}
+{decision_text}
 """
 
     if budget:
-        stop_loss_price = stock_data['support_1'] * 0.98  # 2% below support
-        stop_loss_pct = ((price - stop_loss_price) / price) * 100
+        # Use LLM-provided stop loss for risk calculation
+        if stop_loss_pct != 0:
+            risk_pct = abs(stop_loss_pct)
+        else:
+            risk_pct = 5.0  # Default 5% if not provided
+
         position_size = budget * 0.4
-        max_risk = position_size * (stop_loss_pct / 100)
+        max_risk = position_size * (risk_pct / 100)
 
         response += f"""
 💰 *{labels['position']} (Budget: €{budget:,.0f}):*
 ├── {labels['recommended']}: €{budget * 0.3:,.0f} - €{budget * 0.5:,.0f}
-├── {labels['stop_loss']}: {currency} {stop_loss_price:,.2f} (-{stop_loss_pct:.1f}%)
+├── {labels['stop_loss']}: {currency} {stop_loss_price:,.2f} ({stop_loss_pct:+.1f}%)
 └── {labels['max_risk']}: €{max_risk:,.0f}
 """
 
@@ -195,85 +212,127 @@ _{stock_data['name']}_
 
 def format_knockout_result(symbol: str, direction: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
     """Format knockout analysis for Telegram with language support."""
-    decision = result.get("final_trade_decision", "")
-
+    decision_text = result.get("final_trade_decision", "")
+    trade = result.get("trade_decision", {})  # Structured data from JSON
+    currency = stock_data['currency']
     price = stock_data["price"]
+    is_de = lang == "de"
 
+    # Get signal from structured data (reliable!)
+    signal_raw = trade.get("signal", "HOLD").upper()
+    confidence = trade.get("confidence", 0.5)
+
+    # Get LLM-provided targets
+    target_1 = trade.get("target_1_price", 0)
+    target_1_pct = trade.get("target_1_pct", 0)
+    target_2 = trade.get("target_2_price", 0)
+    target_2_pct = trade.get("target_2_pct", 0)
+    stop_loss_price = trade.get("stop_loss_price", 0)
+
+    # Calculate KO level based on direction
     if direction == "long":
         emoji = "📈"
         ko_level = stock_data["recent_low"] * 0.95  # 5% below support
         distance = ((price - ko_level) / price) * 100
-        target1 = price * 1.05
-        target2 = price * 1.10
+        # Fallback targets if LLM didn't provide
+        if target_1 == 0:
+            target_1 = price * 1.05
+            target_1_pct = 5.0
+        if target_2 == 0:
+            target_2 = price * 1.10
+            target_2_pct = 10.0
     else:
         emoji = "📉"
         ko_level = stock_data["recent_high"] * 1.05  # 5% above resistance
         distance = ((ko_level - price) / price) * 100
-        target1 = price * 0.95
-        target2 = price * 0.90
+        # Fallback targets if LLM didn't provide
+        if target_1 == 0:
+            target_1 = price * 0.95
+            target_1_pct = -5.0
+        if target_2 == 0:
+            target_2 = price * 0.90
+            target_2_pct = -10.0
 
     leverage = min(10, max(2, int(100 / distance)))
 
-    # Detect recommendation from analysis
-    decision_upper = decision.upper()[:500]
-    is_de = lang == "de"
-
+    # Determine recommendation based on signal and direction (from structured data!)
     if direction == "long":
         # For LONG: BUY = ✅ empfohlen, SELL = ❌ nicht empfohlen
-        if "BUY" in decision_upper or "KAUFEN" in decision_upper:
+        if signal_raw == "BUY":
             signal_emoji = "✅"
             signal_text = "EMPFOHLEN" if is_de else "RECOMMENDED"
-        elif "SELL" in decision_upper or "VERKAUFEN" in decision_upper:
+        elif signal_raw == "SELL":
             signal_emoji = "❌"
             signal_text = "NICHT EMPFOHLEN" if is_de else "NOT RECOMMENDED"
         else:
             signal_emoji = "⚠️"
-            signal_text = "NEUTRAL" if is_de else "NEUTRAL"
+            signal_text = "NEUTRAL"
     else:
         # For SHORT: SELL = ✅ empfohlen, BUY = ❌ nicht empfohlen
-        if "SELL" in decision_upper or "VERKAUFEN" in decision_upper or "SHORT" in decision_upper:
+        if signal_raw == "SELL":
             signal_emoji = "✅"
             signal_text = "EMPFOHLEN" if is_de else "RECOMMENDED"
-        elif "BUY" in decision_upper or "KAUFEN" in decision_upper:
+        elif signal_raw == "BUY":
             signal_emoji = "❌"
             signal_text = "NICHT EMPFOHLEN" if is_de else "NOT RECOMMENDED"
         else:
             signal_emoji = "⚠️"
-            signal_text = "NEUTRAL" if is_de else "NEUTRAL"
+            signal_text = "NEUTRAL"
 
-    # No truncation - send_telegram_message handles long texts automatically
+    # Confidence bar
+    conf_bars = int(confidence * 10)
+    conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
+
+    # Labels
+    labels = {
+        "price": "Price" if lang == "en" else "Kurs",
+        "confidence": "Confidence" if lang == "en" else "Konfidenz",
+        "ko_rec": "Knockout Recommendation" if lang == "en" else "Knockout-Empfehlung",
+        "ko_level": "KO Level" if lang == "en" else "KO-Level",
+        "distance": "Distance" if lang == "en" else "Abstand",
+        "leverage": "Rec. Leverage" if lang == "en" else "Empf. Hebel",
+        "support": "Support",
+        "targets": "Price Targets" if lang == "en" else "Kursziele",
+        "position": "Position",
+        "investment": "Rec. Investment" if lang == "en" else "Empf. Einsatz",
+        "max_loss": "Max Loss (KO)" if lang == "en" else "Max Verlust (KO)",
+        "analysis": "Analysis" if lang == "en" else "Analyse",
+        "risk": "At KO = Total Loss!" if lang == "en" else "Bei KO = Totalverlust!",
+    }
 
     response = f"""
 {emoji} *{direction.upper()} KNOCKOUT: {symbol}*
 _{stock_data['name']}_
 
 {signal_emoji} *TL;DR: {direction.upper()} {signal_text}*
+📊 *{labels['confidence']}:* {conf_display} {confidence:.0%}
 
-💵 *Kurs:* {stock_data['currency']} {price:,.2f}
+💵 *{labels['price']}:* {currency} {price:,.2f}
 
-🎯 *Knockout-Empfehlung:*
-├── KO-Level: {stock_data['currency']} {ko_level:,.2f}
-├── Abstand: {distance:.1f}%
-├── Empf. Hebel: {leverage}x
-└── Support: {stock_data['currency']} {stock_data['recent_low']:,.2f}
+🎯 *{labels['ko_rec']}:*
+├── {labels['ko_level']}: {currency} {ko_level:,.2f}
+├── {labels['distance']}: {distance:.1f}%
+├── {labels['leverage']}: {leverage}x
+└── {labels['support']}: {currency} {stock_data['recent_low']:,.2f}
 
-📊 *Kursziele:*
-├── Target 1: {stock_data['currency']} {target1:,.2f}
-└── Target 2: {stock_data['currency']} {target2:,.2f}
+📊 *{labels['targets']}:*
+├── Target 1: {currency} {target_1:,.2f} ({target_1_pct:+.1f}%)
+└── Target 2: {currency} {target_2:,.2f} ({target_2_pct:+.1f}%)
 """
 
     if budget:
+        investment = budget * 0.2
         response += f"""
-💰 *Position (Budget: €{budget:,.0f}):*
-├── Empf. Einsatz: €{budget * 0.2:,.0f}
-└── Max Verlust (KO): €{budget * 0.2:,.0f}
+💰 *{labels['position']} (Budget: €{budget:,.0f}):*
+├── {labels['investment']}: €{investment:,.0f}
+└── {labels['max_loss']}: €{investment:,.0f}
 """
 
     response += f"""
-💡 *Analyse:*
-{decision}
+💡 *{labels['analysis']}:*
+{decision_text}
 
-⚠️ *Risiko:* Bei KO = Totalverlust!
+⚠️ *Risiko:* {labels['risk']}
 
 📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})
 """
