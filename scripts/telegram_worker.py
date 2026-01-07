@@ -312,51 +312,10 @@ def run_commodity_analysis(symbol: str, lang: str = "en") -> dict:
     commodity_name = get_commodity_name(symbol)
     today = date.today().isoformat()
 
-    # Language-specific prompt
-    if lang == "de":
-        prompt = f"""Du bist ein erfahrener Rohstoff-Analyst. Analysiere {commodity_name} ({symbol}) für heute ({today}).
+    # Language output instruction
+    lang_name = "German" if lang == "de" else "English"
 
-WICHTIG: Nutze Google Search um aktuelle Informationen zu finden!
-
-Recherchiere und analysiere:
-
-1. **Aktuelle Marktsituation**
-   - Aktueller Preis und Tagesentwicklung
-   - Wichtige Preislevel (Support/Resistance)
-   - Technische Indikatoren (Trend, RSI, Moving Averages)
-
-2. **Fundamentale Faktoren**
-   - Angebot & Nachfrage Situation
-   - Lagerbestände / Inventories
-   - Produktionszahlen relevanter Länder
-   - Saisonale Faktoren
-
-3. **Marktbewegende News**
-   - Geopolitische Entwicklungen
-   - Zentralbank-Politik (Fed, EZB)
-   - Wirtschaftsdaten
-   - Wetter/Naturkatastrophen (falls relevant)
-
-4. **Sentiment & Positioning**
-   - COT Report (Commercials vs Speculators)
-   - ETF Flows
-   - Analystenmeinungen
-
-Basierend auf deiner Analyse, gib eine klare Empfehlung:
-
-📋 ACTION BOX
-━━━━━━━━━━━━━━━━━━━━
-Signal: [BUY/SELL/HOLD]
-Entry: $XX.XX (idealer Einstiegspreis)
-Stop-Loss: $XX.XX (-X.X%)
-Target 1: $XX.XX (+X.X%)
-Target 2: $XX.XX (+X.X%)
-Risk/Reward: X.X:1
-━━━━━━━━━━━━━━━━━━━━
-
-Schreibe die GESAMTE Analyse auf Deutsch."""
-    else:
-        prompt = f"""You are an experienced commodity analyst. Analyze {commodity_name} ({symbol}) for today ({today}).
+    prompt = f"""You are an experienced commodity analyst. Analyze {commodity_name} ({symbol}) for today ({today}).
 
 IMPORTANT: Use Google Search to find current information!
 
@@ -394,7 +353,9 @@ Stop-Loss: $XX.XX (-X.X%)
 Target 1: $XX.XX (+X.X%)
 Target 2: $XX.XX (+X.X%)
 Risk/Reward: X.X:1
-━━━━━━━━━━━━━━━━━━━━"""
+━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT: Write your ENTIRE response in {lang_name}."""
 
     # Use Gemini 3 with Google Search grounding
     model = genai.GenerativeModel(
