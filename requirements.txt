@@ -12,6 +12,7 @@ langchain-openai
 langchain-experimental
 langchain-anthropic
 langchain-google-genai
+google-generativeai>=0.8.0
 pandas
 yfinance
 praw
