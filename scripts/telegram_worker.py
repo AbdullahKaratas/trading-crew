@@ -232,7 +232,30 @@ _{stock_data['name']}_
     return response.strip()
 
 
-def run_analysis(symbol: str) -> dict:
+def translate_to_german(text: str) -> str:
+    """Translate analysis text to German using Gemini Flash (fast & cheap)."""
+    import google.generativeai as genai
+
+    try:
+        genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        prompt = f"""Translate the following stock analysis to German.
+Keep all numbers, ticker symbols, and technical terms intact.
+Maintain the markdown formatting (headers, bullet points).
+Be concise but accurate.
+
+Text to translate:
+{text}"""
+
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"Translation failed: {e}")
+        return text  # Return original if translation fails
+
+
+def run_analysis(symbol: str, lang: str = "en") -> dict:
     """Run TradingAgents analysis."""
     from tradingagents.default_config import DEFAULT_CONFIG
 
@@ -250,6 +273,13 @@ def run_analysis(symbol: str) -> dict:
     ta = TradingAgentsGraph(debug=False, config=config)
     today = date.today().isoformat()
     final_state, decision = ta.propagate(symbol, today)
+
+    # Translate to German if requested
+    if lang == "de" and final_state.get("final_trade_decision"):
+        print("Translating to German...")
+        final_state["final_trade_decision"] = translate_to_german(
+            final_state["final_trade_decision"]
+        )
 
     return final_state
 
@@ -287,7 +317,7 @@ def main():
         print(f"Stock: {stock_data['name']} @ {stock_data['price']:.2f}")
 
         # Run analysis
-        result = run_analysis(symbol)
+        result = run_analysis(symbol, lang)
         print("Analysis complete")
 
         # Format and send result
