@@ -397,7 +397,8 @@ def get_income_statement(
 
 
 def get_insider_transactions(
-    ticker: Annotated[str, "ticker symbol of the company"]
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current trading date (optional)"] = None
 ):
     """Get insider transactions data from yfinance."""
     try:
@@ -418,3 +419,67 @@ def get_insider_transactions(
         
     except Exception as e:
         return f"Error retrieving insider transactions for {ticker}: {str(e)}"
+
+
+def get_insider_sentiment(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current trading date"] = None
+):
+    """Get insider sentiment data from yfinance using institutional holders and insider activity."""
+    try:
+        ticker_obj = yf.Ticker(ticker.upper())
+        results = []
+
+        # Get institutional holders
+        try:
+            inst_holders = ticker_obj.institutional_holders
+            if inst_holders is not None and not inst_holders.empty:
+                results.append(f"# Institutional Holders for {ticker.upper()}")
+                results.append(inst_holders.to_csv())
+        except Exception:
+            pass
+
+        # Get major holders
+        try:
+            major_holders = ticker_obj.major_holders
+            if major_holders is not None and not major_holders.empty:
+                results.append(f"\n# Major Holders for {ticker.upper()}")
+                results.append(major_holders.to_csv())
+        except Exception:
+            pass
+
+        # Get insider transactions as sentiment proxy
+        try:
+            insider_trans = ticker_obj.insider_transactions
+            if insider_trans is not None and not insider_trans.empty:
+                # Summarize insider activity
+                buy_count = len(insider_trans[insider_trans['Transaction'].str.contains('Buy|Purchase|Acquisition', case=False, na=False)])
+                sell_count = len(insider_trans[insider_trans['Transaction'].str.contains('Sell|Sale|Disposition', case=False, na=False)])
+
+                sentiment = "NEUTRAL"
+                if buy_count > sell_count * 2:
+                    sentiment = "BULLISH"
+                elif sell_count > buy_count * 2:
+                    sentiment = "BEARISH"
+                elif buy_count > sell_count:
+                    sentiment = "SLIGHTLY BULLISH"
+                elif sell_count > buy_count:
+                    sentiment = "SLIGHTLY BEARISH"
+
+                results.append(f"\n# Insider Sentiment Summary for {ticker.upper()}")
+                results.append(f"Recent insider buys: {buy_count}")
+                results.append(f"Recent insider sells: {sell_count}")
+                results.append(f"Overall insider sentiment: {sentiment}")
+        except Exception:
+            pass
+
+        if not results:
+            return f"No insider sentiment data available for symbol '{ticker}'"
+
+        header = f"# Insider Sentiment data for {ticker.upper()}\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+        return header + "\n".join(results)
+
+    except Exception as e:
+        return f"Error retrieving insider sentiment for {ticker}: {str(e)}"

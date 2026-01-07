@@ -29,5 +29,7 @@ DEFAULT_CONFIG = {
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
         # Example: "get_news": "openai",               # Override category default
+        "get_insider_sentiment": "yfinance",          # yfinance has insider sentiment data
+        "get_insider_transactions": "yfinance",       # yfinance has insider transactions data
     },
 }

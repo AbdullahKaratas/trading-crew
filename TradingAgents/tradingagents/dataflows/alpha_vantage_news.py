@@ -24,13 +24,14 @@ def get_news(ticker, start_date, end_date) -> dict[str, str] | str:
     
     return _make_api_request("NEWS_SENTIMENT", params)
 
-def get_insider_transactions(symbol: str) -> dict[str, str] | str:
+def get_insider_transactions(symbol: str, curr_date: str = None) -> dict[str, str] | str:
     """Returns latest and historical insider transactions by key stakeholders.
 
     Covers transactions by founders, executives, board members, etc.
 
     Args:
         symbol: Ticker symbol. Example: "IBM".
+        curr_date: Current trading date (optional, not used by Alpha Vantage API).
 
     Returns:
         Dictionary containing insider transaction data or JSON string.
