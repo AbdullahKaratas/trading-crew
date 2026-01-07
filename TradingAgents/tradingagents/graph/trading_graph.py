@@ -89,8 +89,20 @@ class TradingAgentsGraph:
             # quick_think_llm should be a Gemini model (e.g., gemini-3-flash-preview)
             # deep_think_llm should be an Anthropic model (e.g., claude-opus-4-5-20251101)
             self.quick_thinking_llm = ChatGoogleGenerativeAI(model=self.config["quick_think_llm"])
-            self.deep_thinking_llm = ChatAnthropic(model=self.config["deep_think_llm"])
-            print(f"[Mixed Mode] Analysts: {self.config['quick_think_llm']} | Final: {self.config['deep_think_llm']}")
+
+            # Primary deep thinking model (Anthropic)
+            primary_deep = ChatAnthropic(model=self.config["deep_think_llm"])
+
+            # Check if fallback is configured
+            fallback_model = self.config.get("deep_think_fallback")
+            if fallback_model:
+                # Create fallback LLM (assume it's a Gemini model)
+                fallback_deep = ChatGoogleGenerativeAI(model=fallback_model)
+                self.deep_thinking_llm = primary_deep.with_fallbacks([fallback_deep])
+                print(f"[Mixed Mode] Analysts: {self.config['quick_think_llm']} | Final: {self.config['deep_think_llm']} (fallback: {fallback_model})")
+            else:
+                self.deep_thinking_llm = primary_deep
+                print(f"[Mixed Mode] Analysts: {self.config['quick_think_llm']} | Final: {self.config['deep_think_llm']}")
         else:
             raise ValueError(f"Unsupported LLM provider: {self.config['llm_provider']}")
         

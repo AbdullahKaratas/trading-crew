@@ -42,6 +42,8 @@ llm:
   quick_think_model: "gemini-3-flash-preview"
   # Claude Opus for final decisions and debates - best reasoning!
   deep_think_model: "claude-opus-4-5-20251101"
+  # Fallback model if Opus credits run out (Gemini Pro as backup)
+  deep_think_fallback: "gemini-3-pro-preview"
   # Maximum debate rounds between bull/bear researchers
   max_debate_rounds: 2
   # Temperature for LLM calls

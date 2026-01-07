@@ -106,6 +106,10 @@ def create_trading_agents_config(settings: dict) -> dict:
         config["deep_think_llm"] = settings.get("llm", {}).get(
             "deep_think_model", "claude-opus-4-5-20251101"  # Opus for final
         )
+        # Fallback if Opus credits run out
+        config["deep_think_fallback"] = settings.get("llm", {}).get(
+            "deep_think_fallback", None  # e.g., "gemini-3-pro-preview"
+        )
     elif llm_provider == "anthropic":
         # Full Anthropic mode (original)
         config["quick_think_llm"] = settings.get("llm", {}).get(
