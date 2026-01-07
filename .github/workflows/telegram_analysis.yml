@@ -36,6 +36,7 @@ jobs:
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
           USER_ID: ${{ github.event.client_payload.user_id }}
           USERNAME: ${{ github.event.client_payload.username }}
+          LANG: ${{ github.event.client_payload.lang }}
         run: python scripts/telegram_worker.py
 
       - name: Send Error on Failure

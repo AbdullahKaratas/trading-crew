@@ -40,7 +40,7 @@ def send_telegram_message(chat_id: str, text: str) -> bool:
 
 
 def get_stock_data(symbol: str) -> dict:
-    """Get current stock data."""
+    """Get current stock data with support/resistance levels."""
     ticker = yf.Ticker(symbol)
     info = ticker.info
     hist = ticker.history(period="3mo")
@@ -52,59 +52,128 @@ def get_stock_data(symbol: str) -> dict:
     recent_low = hist["Low"].tail(20).min()
     recent_high = hist["High"].tail(20).max()
 
+    # Calculate support and resistance levels
+    support_1 = hist["Low"].tail(10).min()  # Recent support
+    support_2 = hist["Low"].tail(30).min()  # Stronger support
+    resistance_1 = hist["High"].tail(10).max()  # Recent resistance
+    resistance_2 = hist["High"].tail(30).max()  # Stronger resistance
+
+    # Entry zone (between current and support)
+    entry_zone_low = support_1 * 1.01  # Just above support
+    entry_zone_high = current_price * 0.98  # Slightly below current
+
+    # 52 week data
+    hist_1y = ticker.history(period="1y")
+    week_52_low = hist_1y["Low"].min() if not hist_1y.empty else support_2
+    week_52_high = hist_1y["High"].max() if not hist_1y.empty else resistance_2
+
     return {
         "name": info.get("shortName", symbol),
         "price": current_price,
         "currency": info.get("currency", "USD"),
         "recent_low": recent_low,
         "recent_high": recent_high,
+        "support_1": support_1,
+        "support_2": support_2,
+        "resistance_1": resistance_1,
+        "resistance_2": resistance_2,
+        "entry_zone_low": entry_zone_low,
+        "entry_zone_high": entry_zone_high,
+        "week_52_low": week_52_low,
+        "week_52_high": week_52_high,
         "sector": info.get("sector", "Unknown"),
     }
 
 
-def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: float = None) -> str:
-    """Format analysis result for Telegram."""
+def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
+    """Format analysis result for Telegram with language support."""
     decision = result.get("final_trade_decision", "")
+    currency = stock_data['currency']
+    price = stock_data['price']
 
     # Detect signal type
     decision_upper = decision.upper()[:200]
     if "BUY" in decision_upper:
-        signal = "BUY"
+        signal = "BUY" if lang == "en" else "KAUFEN"
         emoji = "🟢"
     elif "SELL" in decision_upper or "SHORT" in decision_upper:
-        signal = "SELL"
+        signal = "SELL" if lang == "en" else "VERKAUFEN"
         emoji = "🔴"
     else:
-        signal = "HOLD"
+        signal = "HOLD" if lang == "en" else "HALTEN"
         emoji = "🟡"
 
     # Truncate decision
-    if len(decision) > 1200:
-        decision = decision[:1200] + "..."
+    if len(decision) > 900:
+        decision = decision[:900] + "..."
+
+    # Language-specific labels
+    if lang == "en":
+        labels = {
+            "price": "Price",
+            "levels": "Key Levels",
+            "support": "Support",
+            "resistance": "Resistance",
+            "entry_zone": "Entry Zone",
+            "week52": "52W Range",
+            "analysis": "Analysis",
+            "position": "Position",
+            "recommended": "Recommended",
+            "max_risk": "Max Risk",
+            "stop_loss": "Stop-Loss",
+        }
+    else:
+        labels = {
+            "price": "Kurs",
+            "levels": "Wichtige Levels",
+            "support": "Support",
+            "resistance": "Widerstand",
+            "entry_zone": "Einstiegszone",
+            "week52": "52W Bereich",
+            "analysis": "Analyse",
+            "position": "Position",
+            "recommended": "Empfohlen",
+            "max_risk": "Max Risiko",
+            "stop_loss": "Stop-Loss",
+        }
 
     response = f"""
 {emoji} *{signal}: {symbol}*
 _{stock_data['name']}_
 
-💵 *Kurs:* {stock_data['currency']} {stock_data['price']:,.2f}
+💵 *{labels['price']}:* {currency} {price:,.2f}
 
-📊 *Analyse:*
+📍 *{labels['levels']}:*
+├── {labels['support']} 1: {currency} {stock_data['support_1']:,.2f}
+├── {labels['support']} 2: {currency} {stock_data['support_2']:,.2f}
+├── {labels['resistance']} 1: {currency} {stock_data['resistance_1']:,.2f}
+├── {labels['resistance']} 2: {currency} {stock_data['resistance_2']:,.2f}
+├── 🎯 {labels['entry_zone']}: {currency} {stock_data['entry_zone_low']:,.2f} - {stock_data['entry_zone_high']:,.2f}
+└── {labels['week52']}: {currency} {stock_data['week_52_low']:,.2f} - {stock_data['week_52_high']:,.2f}
+
+📊 *{labels['analysis']}:*
 {decision}
 """
 
     if budget:
+        stop_loss_price = stock_data['support_1'] * 0.98  # 2% below support
+        stop_loss_pct = ((price - stop_loss_price) / price) * 100
+        position_size = budget * 0.4
+        max_risk = position_size * (stop_loss_pct / 100)
+
         response += f"""
-💰 *Position (Budget: €{budget:,.0f}):*
-├── Empf. Position: €{budget * 0.3:,.0f} - €{budget * 0.5:,.0f}
-└── Max Risiko (8% SL): €{budget * 0.5 * 0.08:,.0f}
+💰 *{labels['position']} (Budget: €{budget:,.0f}):*
+├── {labels['recommended']}: €{budget * 0.3:,.0f} - €{budget * 0.5:,.0f}
+├── {labels['stop_loss']}: {currency} {stop_loss_price:,.2f} (-{stop_loss_pct:.1f}%)
+└── {labels['max_risk']}: €{max_risk:,.0f}
 """
 
     response += f"\n📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})"
     return response.strip()
 
 
-def format_knockout_result(symbol: str, direction: str, result: dict, stock_data: dict, budget: float = None) -> str:
-    """Format knockout analysis for Telegram."""
+def format_knockout_result(symbol: str, direction: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
+    """Format knockout analysis for Telegram with language support."""
     decision = result.get("final_trade_decision", "")
 
     price = stock_data["price"]
@@ -193,9 +262,15 @@ def main():
     budget_str = os.environ.get("BUDGET", "")
     chat_id = os.environ.get("CHAT_ID")
     username = os.environ.get("USERNAME", "User")
+    lang = os.environ.get("LANG", "de").lower()
+
+    # Validate language
+    if lang not in ["de", "en"]:
+        lang = "de"
 
     if not symbol:
-        send_telegram_message(chat_id, "❌ Kein Symbol angegeben.")
+        msg = "❌ No symbol provided." if lang == "en" else "❌ Kein Symbol angegeben."
+        send_telegram_message(chat_id, msg)
         return 1
 
     if not chat_id:
@@ -204,7 +279,7 @@ def main():
 
     budget = float(budget_str) if budget_str and budget_str != "null" else None
 
-    print(f"Running {command} analysis for {symbol} (budget: {budget})")
+    print(f"Running {command} analysis for {symbol} (budget: {budget}, lang: {lang})")
 
     try:
         # Get stock data
@@ -217,9 +292,9 @@ def main():
 
         # Format and send result
         if command in ["long", "short"]:
-            message = format_knockout_result(symbol, command, result, stock_data, budget)
+            message = format_knockout_result(symbol, command, result, stock_data, budget, lang)
         else:
-            message = format_analyze_result(symbol, result, stock_data, budget)
+            message = format_analyze_result(symbol, result, stock_data, budget, lang)
 
         success = send_telegram_message(chat_id, message)
 
@@ -231,7 +306,7 @@ def main():
             return 1
 
     except Exception as e:
-        error_msg = f"❌ Fehler bei Analyse von *{symbol}*:\n\n`{str(e)[:200]}`"
+        error_msg = f"❌ Error analyzing *{symbol}*:\n\n`{str(e)[:200]}`" if lang == "en" else f"❌ Fehler bei Analyse von *{symbol}*:\n\n`{str(e)[:200]}`"
         send_telegram_message(chat_id, error_msg)
         print(f"Error: {e}")
         return 1
