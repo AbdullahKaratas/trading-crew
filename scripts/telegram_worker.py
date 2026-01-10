@@ -408,11 +408,6 @@ def main():
     if direction and direction not in ["long", "short"]:
         direction = None
 
-    # Legacy support: /long and /short commands map to direction
-    if command in ["long", "short"]:
-        direction = command
-        command = "analyze"
-
     if not symbol:
         msg = "❌ No symbol provided." if lang == "en" else "❌ Kein Symbol angegeben."
         send_telegram_message(chat_id, msg)
