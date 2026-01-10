@@ -202,10 +202,21 @@ At the VERY END of your response, you MUST include a structured JSON block. This
 The JSON block MUST be the LAST thing in your response."""
 
         response = llm.invoke(prompt)
-        # Handle case where content might be a list (some LLMs return multiple blocks)
+        # Handle case where content might be a list or dict (Claude returns content blocks)
         response_text = response.content
         if isinstance(response_text, list):
-            response_text = "\n".join(str(block) for block in response_text)
+            # Handle list of content blocks (e.g., [{'type': 'text', 'text': '...'}])
+            texts = []
+            for block in response_text:
+                if isinstance(block, dict) and 'text' in block:
+                    texts.append(block['text'])
+                elif hasattr(block, 'text'):
+                    texts.append(block.text)
+                else:
+                    texts.append(str(block))
+            response_text = "\n".join(texts)
+        elif isinstance(response_text, dict) and 'text' in response_text:
+            response_text = response_text['text']
 
         # Parse the structured JSON from the response
         trade_decision = parse_trade_decision_json(response_text)
@@ -254,7 +265,18 @@ Replace the example values with your actual recommendation.
             retry_response = llm.invoke(retry_prompt)
             retry_text = retry_response.content
             if isinstance(retry_text, list):
-                retry_text = "\n".join(str(block) for block in retry_text)
+                # Handle list of content blocks
+                texts = []
+                for block in retry_text:
+                    if isinstance(block, dict) and 'text' in block:
+                        texts.append(block['text'])
+                    elif hasattr(block, 'text'):
+                        texts.append(block.text)
+                    else:
+                        texts.append(str(block))
+                retry_text = "\n".join(texts)
+            elif isinstance(retry_text, dict) and 'text' in retry_text:
+                retry_text = retry_text['text']
             trade_decision = parse_trade_decision_json(retry_text)
 
             if trade_decision is None:
