@@ -1,4 +1,3 @@
-import time
 import json
 import re
 
@@ -77,7 +76,7 @@ def create_risk_manager(llm, memory):
         risk_debate_state = state["risk_debate_state"]
         market_research_report = state["market_report"]
         news_report = state["news_report"]
-        fundamentals_report = state["news_report"]
+        fundamentals_report = state["fundamentals_report"]
         sentiment_report = state["sentiment_report"]
         trader_plan = state["investment_plan"]
 

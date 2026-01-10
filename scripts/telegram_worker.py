@@ -110,20 +110,21 @@ def get_stock_data(symbol: str) -> dict:
 
 def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
     """Format analysis result for Telegram with new table-based format."""
-    trade = result.get("trade_decision", {})  # Structured data from JSON
+    trade = result.get("trade_decision") or {}  # Structured data from JSON
     is_de = lang == "de"
 
-    # Get all values from structured LLM response
-    signal_raw = trade.get("signal", "HOLD").upper()
-    confidence = trade.get("confidence", 0.5)
+    # Get all values from structured LLM response - NO FALLBACKS
+    # If trade_decision is empty, risk_manager already raised an error
+    signal_raw = trade.get("signal", "—").upper()
+    confidence = trade.get("confidence")  # None if missing
     unable_to_assess = trade.get("unable_to_assess", False)
-    price_usd = trade.get("price_usd", stock_data['price'])
-    price_eur = trade.get("price_eur", price_usd * 0.96)
-    strategies = trade.get("strategies", {})
+    price_usd = trade.get("price_usd")  # None if missing
+    price_eur = trade.get("price_eur")  # None if missing
+    strategies = trade.get("strategies") or {}
     hold_alternative = trade.get("hold_alternative")
-    support_zones = trade.get("support_zones", [])
-    resistance_zones = trade.get("resistance_zones", [])
-    detailed_analysis = trade.get("detailed_analysis", result.get("final_trade_decision", ""))
+    support_zones = trade.get("support_zones") or []
+    resistance_zones = trade.get("resistance_zones") or []
+    detailed_analysis = trade.get("detailed_analysis") or ""
 
     # Signal mapping with emojis
     signal_map = {
@@ -160,16 +161,28 @@ def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: f
     risk_labels = {"low": labels["low"], "medium": labels["medium"], "high": labels["high"]}
 
     # Confidence bar visualization
-    conf_bars = int(confidence * 10)
-    conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
+    if confidence is not None:
+        conf_bars = int(confidence * 10)
+        conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
+        conf_text = f"{conf_display} {confidence:.0%}"
+    else:
+        conf_text = "—"
+
+    # Price display
+    if price_usd is not None and price_eur is not None:
+        price_text = f"${price_usd:,.2f} / €{price_eur:,.2f}"
+    elif price_usd is not None:
+        price_text = f"${price_usd:,.2f}"
+    else:
+        price_text = "—"
 
     # Build response
     response = f"""
 {emoji} *{signal}: {symbol}*
 _{stock_data['name']}_
 
-💵 *{labels['price']}:* ${price_usd:,.2f} / €{price_eur:,.2f}
-📊 *{labels['confidence']}:* {conf_display} {confidence:.0%}
+💵 *{labels['price']}:* {price_text}
+📊 *{labels['confidence']}:* {conf_text}
 """
 
     # Handle unable to assess
@@ -248,18 +261,18 @@ _{stock_data['name']}_
 
 def format_knockout_result(symbol: str, direction: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
     """Format knockout analysis for Telegram with new table-based format."""
-    trade = result.get("trade_decision", {})  # Structured data from JSON
+    trade = result.get("trade_decision") or {}  # Structured data from JSON
     is_de = lang == "de"
 
-    # Get all values from structured LLM response
-    signal_raw = trade.get("signal", "HOLD").upper()
-    confidence = trade.get("confidence", 0.5)
-    price_usd = trade.get("price_usd", stock_data['price'])
-    price_eur = trade.get("price_eur", price_usd * 0.96)
-    strategies = trade.get("strategies", {})
-    support_zones = trade.get("support_zones", [])
-    resistance_zones = trade.get("resistance_zones", [])
-    detailed_analysis = trade.get("detailed_analysis", result.get("final_trade_decision", ""))
+    # Get all values from structured LLM response - NO FALLBACKS
+    signal_raw = trade.get("signal", "—").upper()
+    confidence = trade.get("confidence")  # None if missing
+    price_usd = trade.get("price_usd")  # None if missing
+    price_eur = trade.get("price_eur")  # None if missing
+    strategies = trade.get("strategies") or {}
+    support_zones = trade.get("support_zones") or []
+    resistance_zones = trade.get("resistance_zones") or []
+    detailed_analysis = trade.get("detailed_analysis") or ""
 
     # Determine if direction matches signal
     direction_upper = direction.upper()
@@ -288,9 +301,21 @@ def format_knockout_result(symbol: str, direction: str, result: dict, stock_data
             signal_emoji = "⚠️"
             signal_text = "NEUTRAL"
 
-    # Confidence bar
-    conf_bars = int(confidence * 10)
-    conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
+    # Confidence bar visualization
+    if confidence is not None:
+        conf_bars = int(confidence * 10)
+        conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
+        conf_text = f"{conf_display} {confidence:.0%}"
+    else:
+        conf_text = "—"
+
+    # Price display
+    if price_usd is not None and price_eur is not None:
+        price_text = f"${price_usd:,.2f} / €{price_eur:,.2f}"
+    elif price_usd is not None:
+        price_text = f"${price_usd:,.2f}"
+    else:
+        price_text = "—"
 
     # Labels
     labels = {
@@ -324,9 +349,9 @@ def format_knockout_result(symbol: str, direction: str, result: dict, stock_data
 _{stock_data['name']}_
 
 {signal_emoji} *TL;DR: {direction_upper} {signal_text}*
-📊 *{labels['confidence']}:* {conf_display} {confidence:.0%}
+📊 *{labels['confidence']}:* {conf_text}
 
-💵 *{labels['price']}:* ${price_usd:,.2f} / €{price_eur:,.2f}
+💵 *{labels['price']}:* {price_text}
 """
 
     # Strategies section
