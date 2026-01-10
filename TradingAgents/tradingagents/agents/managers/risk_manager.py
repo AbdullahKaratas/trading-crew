@@ -4,17 +4,33 @@ import re
 
 
 # JSON Schema for structured trade decision
+# Signal: LONG (buy), SHORT (sell), HOLD (wait), IGNORE (no trade)
 TRADE_DECISION_SCHEMA = {
-    "signal": "BUY | SELL | HOLD",
+    "signal": "LONG | SHORT | HOLD | IGNORE",
     "confidence": 0.75,  # 0.0 to 1.0
-    "entry_price": 0.0,
-    "stop_loss_price": 0.0,
-    "stop_loss_pct": 0.0,
-    "target_1_price": 0.0,
-    "target_1_pct": 0.0,
-    "target_2_price": 0.0,
-    "target_2_pct": 0.0,
-    "risk_reward_ratio": 0.0,
+    "unable_to_assess": False,  # True if analysis not possible
+    "price_usd": 0.0,  # Current price in USD
+    "price_eur": 0.0,  # Current price in EUR (estimated)
+    "strategies": {
+        "conservative": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "low"},
+        "moderate": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "medium"},
+        "aggressive": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "high"},
+    },
+    "hold_alternative": {  # Only if signal is HOLD - suggestion for those who want to enter anyway
+        "direction": "LONG | SHORT",
+        "strategies": {
+            "conservative": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "low"},
+            "moderate": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "medium"},
+            "aggressive": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "high"},
+        },
+    },
+    "support_zones": [
+        {"level_usd": 0.0, "description": "Description of this support level"},
+    ],
+    "resistance_zones": [
+        {"level_usd": 0.0, "description": "Description of this resistance level"},
+    ],
+    "detailed_analysis": "Full analysis text with reasoning",
 }
 
 
@@ -78,13 +94,21 @@ def create_risk_manager(llm, memory):
         else:
             language_instruction = ""
 
-        prompt = f"""{language_instruction}As the Risk Management Judge and Debate Facilitator, your goal is to evaluate the debate between three risk analysts—Risky, Neutral, and Safe/Conservative—and determine the best course of action for the trader. Your decision must result in a clear recommendation: Buy, Sell, or Hold. Choose Hold only if strongly justified by specific arguments, not as a fallback when all sides seem valid. Strive for clarity and decisiveness.
+        prompt = f"""{language_instruction}As the Risk Management Judge and Debate Facilitator, your goal is to evaluate the debate between three risk analysts—Risky, Neutral, and Safe/Conservative—and determine the best course of action for the trader.
+
+Your decision must result in a clear recommendation:
+- **LONG**: Buy/go long on the asset
+- **SHORT**: Sell/go short on the asset
+- **HOLD**: Wait, do not enter now (but provide alternative if someone wants to enter anyway)
+- **IGNORE**: Do not trade this asset at all
+
+Choose HOLD only if strongly justified by specific arguments, not as a fallback. Strive for clarity and decisiveness.
 
 Guidelines for Decision-Making:
 1. **Summarize Key Arguments**: Extract the strongest points from each analyst, focusing on relevance to the context.
 2. **Provide Rationale**: Support your recommendation with direct quotes and counterarguments from the debate.
 3. **Refine the Trader's Plan**: Start with the trader's original plan, **{trader_plan}**, and adjust it based on the analysts' insights.
-4. **Learn from Past Mistakes**: Use lessons from **{past_memory_str}** to address prior misjudgments and improve the decision you are making now to make sure you don't make a wrong BUY/SELL/HOLD call that loses money.
+4. **Learn from Past Mistakes**: Use lessons from **{past_memory_str}** to address prior misjudgments and improve the decision you are making now.
 
 ---
 
@@ -93,43 +117,83 @@ Guidelines for Decision-Making:
 
 ---
 
-## Your Response Format
+## CRITICAL: You MUST respond with a JSON block
 
-First, provide your detailed analysis and reasoning.
-
-Then, at the VERY END of your response, you MUST include a structured JSON block with your trading decision. This is REQUIRED and must follow this exact format:
+At the VERY END of your response, you MUST include a structured JSON block. This is REQUIRED and must follow this EXACT format:
 
 ```json
 {{
-  "signal": "BUY",
+  "signal": "LONG",
   "confidence": 0.75,
-  "entry_price": 150.50,
-  "stop_loss_price": 142.00,
-  "stop_loss_pct": -5.6,
-  "target_1_price": 165.00,
-  "target_1_pct": 9.6,
-  "target_2_price": 180.00,
-  "target_2_pct": 19.6,
-  "risk_reward_ratio": 2.5
+  "unable_to_assess": false,
+  "price_usd": 244.56,
+  "price_eur": 235.50,
+  "strategies": {{
+    "conservative": {{"ko_level_usd": 195.00, "distance_pct": 20.0, "risk": "low"}},
+    "moderate": {{"ko_level_usd": 210.00, "distance_pct": 14.0, "risk": "medium"}},
+    "aggressive": {{"ko_level_usd": 225.00, "distance_pct": 8.0, "risk": "high"}}
+  }},
+  "hold_alternative": null,
+  "support_zones": [
+    {{"level_usd": 230.00, "description": "Recent swing low, strong buyer interest"}},
+    {{"level_usd": 215.00, "description": "200-day moving average"}},
+    {{"level_usd": 195.00, "description": "Major support from Q3 consolidation"}}
+  ],
+  "resistance_zones": [
+    {{"level_usd": 260.00, "description": "Recent high, psychological level"}},
+    {{"level_usd": 280.00, "description": "All-time high region"}},
+    {{"level_usd": 300.00, "description": "Round number resistance"}}
+  ],
+  "detailed_analysis": "Your full analysis text here explaining the reasoning..."
 }}
 ```
 
 **JSON Field Requirements:**
-- `signal`: Must be exactly "BUY", "SELL", or "HOLD" (uppercase)
-- `confidence`: Your confidence level from 0.0 (no confidence) to 1.0 (very confident)
-- `entry_price`: Recommended entry price based on technical analysis
-- `stop_loss_price`: Stop-loss price level
-- `stop_loss_pct`: Stop-loss as negative percentage from entry (e.g., -5.6)
-- `target_1_price`: First price target
-- `target_1_pct`: First target as positive percentage from entry
-- `target_2_price`: Second price target
-- `target_2_pct`: Second target as positive percentage from entry
-- `risk_reward_ratio`: Risk/reward ratio (e.g., 2.5 means 2.5:1)
 
-Base all prices on the technical analysis, support/resistance levels, and risk management principles discussed in the debate. The JSON block must be the LAST thing in your response."""
+1. **signal**: Must be exactly "LONG", "SHORT", "HOLD", or "IGNORE" (uppercase)
+
+2. **confidence**: Your confidence level from 0.0 to 1.0 (e.g., 0.75 = 75%)
+
+3. **unable_to_assess**: Set to true ONLY if you genuinely cannot make an assessment due to missing data
+
+4. **price_usd**: Current price of the asset in USD
+
+5. **price_eur**: Current price in EUR (estimate using ~0.96 EUR/USD rate if needed)
+
+6. **strategies**: THREE knockout certificate strategies based on YOUR signal direction:
+   - For LONG signal: KO-levels are BELOW current price (you get knocked out if price falls)
+   - For SHORT signal: KO-levels are ABOVE current price (you get knocked out if price rises)
+   - **conservative**: Far from current price, low risk, ~15-25% distance
+   - **moderate**: Medium distance, medium risk, ~10-15% distance
+   - **aggressive**: Close to current price, high risk, ~5-10% distance
+   - distance_pct is the percentage distance from current price to KO level
+
+7. **hold_alternative**: If signal is HOLD, provide an alternative suggestion for traders who want to enter anyway:
+   ```json
+   {{
+     "direction": "LONG",
+     "strategies": {{
+       "conservative": {{"ko_level_usd": 195.00, "distance_pct": 20.0, "risk": "low"}},
+       "moderate": {{"ko_level_usd": 210.00, "distance_pct": 14.0, "risk": "medium"}},
+       "aggressive": {{"ko_level_usd": 225.00, "distance_pct": 8.0, "risk": "high"}}
+     }}
+   }}
+   ```
+   Set to null if signal is LONG, SHORT, or IGNORE.
+
+8. **support_zones**: Array of 2-4 key support levels with USD price and description
+
+9. **resistance_zones**: Array of 2-4 key resistance levels with USD price and description
+
+10. **detailed_analysis**: Your full reasoning and analysis text
+
+The JSON block MUST be the LAST thing in your response."""
 
         response = llm.invoke(prompt)
+        # Handle case where content might be a list (some LLMs return multiple blocks)
         response_text = response.content
+        if isinstance(response_text, list):
+            response_text = "\n".join(str(block) for block in response_text)
 
         # Parse the structured JSON from the response
         trade_decision = parse_trade_decision_json(response_text)
@@ -146,23 +210,40 @@ Respond with ONLY this JSON structure, nothing else:
 
 ```json
 {{
-  "signal": "BUY",
+  "signal": "LONG",
   "confidence": 0.75,
-  "entry_price": 150.50,
-  "stop_loss_price": 142.00,
-  "stop_loss_pct": -5.6,
-  "target_1_price": 165.00,
-  "target_1_pct": 9.6,
-  "target_2_price": 180.00,
-  "target_2_pct": 19.6,
-  "risk_reward_ratio": 2.5
+  "unable_to_assess": false,
+  "price_usd": 100.00,
+  "price_eur": 96.00,
+  "strategies": {{
+    "conservative": {{"ko_level_usd": 80.00, "distance_pct": 20.0, "risk": "low"}},
+    "moderate": {{"ko_level_usd": 86.00, "distance_pct": 14.0, "risk": "medium"}},
+    "aggressive": {{"ko_level_usd": 92.00, "distance_pct": 8.0, "risk": "high"}}
+  }},
+  "hold_alternative": null,
+  "support_zones": [
+    {{"level_usd": 95.00, "description": "Recent support level"}},
+    {{"level_usd": 85.00, "description": "Major support zone"}}
+  ],
+  "resistance_zones": [
+    {{"level_usd": 110.00, "description": "Recent resistance"}},
+    {{"level_usd": 120.00, "description": "All-time high"}}
+  ],
+  "detailed_analysis": "Brief analysis here"
 }}
 ```
 
-Replace the example values with your actual recommendation. Signal must be "BUY", "SELL", or "HOLD"."""
+Replace the example values with your actual recommendation.
+- Signal must be "LONG", "SHORT", "HOLD", or "IGNORE"
+- For LONG: KO levels should be BELOW current price
+- For SHORT: KO levels should be ABOVE current price
+- If HOLD: Include hold_alternative with direction and strategies"""
 
             retry_response = llm.invoke(retry_prompt)
-            trade_decision = parse_trade_decision_json(retry_response.content)
+            retry_text = retry_response.content
+            if isinstance(retry_text, list):
+                retry_text = "\n".join(str(block) for block in retry_text)
+            trade_decision = parse_trade_decision_json(retry_text)
 
             if trade_decision is None:
                 # Still failed after retry - raise error

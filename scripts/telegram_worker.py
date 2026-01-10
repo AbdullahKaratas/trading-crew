@@ -109,170 +109,179 @@ def get_stock_data(symbol: str) -> dict:
 
 
 def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
-    """Format analysis result for Telegram with language support."""
-    decision_text = result.get("final_trade_decision", "")
+    """Format analysis result for Telegram with new table-based format."""
     trade = result.get("trade_decision", {})  # Structured data from JSON
-    currency = stock_data['currency']
-    price = stock_data['price']
+    is_de = lang == "de"
 
-    # Get signal from structured data (reliable!)
+    # Get all values from structured LLM response
     signal_raw = trade.get("signal", "HOLD").upper()
     confidence = trade.get("confidence", 0.5)
+    unable_to_assess = trade.get("unable_to_assess", False)
+    price_usd = trade.get("price_usd", stock_data['price'])
+    price_eur = trade.get("price_eur", price_usd * 0.96)
+    strategies = trade.get("strategies", {})
+    hold_alternative = trade.get("hold_alternative")
+    support_zones = trade.get("support_zones", [])
+    resistance_zones = trade.get("resistance_zones", [])
+    detailed_analysis = trade.get("detailed_analysis", result.get("final_trade_decision", ""))
 
-    # Map signal to display text and emoji
+    # Signal mapping with emojis
     signal_map = {
-        "BUY": ("🟢", "BUY" if lang == "en" else "KAUFEN"),
-        "SELL": ("🔴", "SELL" if lang == "en" else "VERKAUFEN"),
-        "HOLD": ("🟡", "HOLD" if lang == "en" else "HALTEN"),
+        "LONG": ("🟢", "LONG"),
+        "SHORT": ("🔴", "SHORT"),
+        "HOLD": ("🟡", "HOLD"),
+        "IGNORE": ("⚫", "IGNORE"),
     }
     emoji, signal = signal_map.get(signal_raw, ("🟡", "HOLD"))
 
-    # Get prices from structured data (LLM-provided!)
-    entry_price = trade.get("entry_price", 0)
-    stop_loss_price = trade.get("stop_loss_price", 0)
-    stop_loss_pct = trade.get("stop_loss_pct", 0)
-    target_1 = trade.get("target_1_price", 0)
-    target_1_pct = trade.get("target_1_pct", 0)
-    target_2 = trade.get("target_2_price", 0)
-    target_2_pct = trade.get("target_2_pct", 0)
-    risk_reward = trade.get("risk_reward_ratio", 0)
+    # Labels
+    labels = {
+        "price": "Price" if not is_de else "Kurs",
+        "confidence": "Confidence" if not is_de else "Konfidenz",
+        "strategies": "Knockout Strategies" if not is_de else "Knockout-Strategien",
+        "strategy": "Strategy" if not is_de else "Strategie",
+        "ko_level": "KO-Level",
+        "distance": "Distance" if not is_de else "Abstand",
+        "risk": "Risk" if not is_de else "Risiko",
+        "conservative": "Conservative" if not is_de else "Konservativ",
+        "moderate": "Moderate" if not is_de else "Moderat",
+        "aggressive": "Aggressive" if not is_de else "Aggressiv",
+        "support": "Support Zones" if not is_de else "Unterstützungszonen",
+        "resistance": "Resistance Zones" if not is_de else "Widerstandszonen",
+        "analysis": "Analysis" if not is_de else "Analyse",
+        "alternative": "Alternative (for those who want to enter)" if not is_de else "Alternative (für Einstieg trotz HOLD)",
+        "low": "Low" if not is_de else "Niedrig",
+        "medium": "Medium" if not is_de else "Mittel",
+        "high": "High" if not is_de else "Hoch",
+        "no_assessment": "Assessment not possible" if not is_de else "Keine Einschätzung möglich",
+    }
 
-    # Language-specific labels
-    if lang == "en":
-        labels = {
-            "price": "Price",
-            "confidence": "Confidence",
-            "action_box": "Action Box",
-            "entry": "Entry",
-            "stop_loss": "Stop-Loss",
-            "target": "Target",
-            "risk_reward": "Risk/Reward",
-            "analysis": "Analysis",
-            "position": "Position",
-            "recommended": "Recommended",
-            "max_risk": "Max Risk",
-        }
-    else:
-        labels = {
-            "price": "Kurs",
-            "confidence": "Konfidenz",
-            "action_box": "Aktionsbox",
-            "entry": "Einstieg",
-            "stop_loss": "Stop-Loss",
-            "target": "Ziel",
-            "risk_reward": "Risiko/Chance",
-            "analysis": "Analyse",
-            "position": "Position",
-            "recommended": "Empfohlen",
-            "max_risk": "Max Risiko",
-        }
+    # Risk label translation
+    risk_labels = {"low": labels["low"], "medium": labels["medium"], "high": labels["high"]}
 
     # Confidence bar visualization
     conf_bars = int(confidence * 10)
     conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
 
+    # Build response
     response = f"""
 {emoji} *{signal}: {symbol}*
 _{stock_data['name']}_
 
-💵 *{labels['price']}:* {currency} {price:,.2f}
+💵 *{labels['price']}:* ${price_usd:,.2f} / €{price_eur:,.2f}
 📊 *{labels['confidence']}:* {conf_display} {confidence:.0%}
-
-📋 *{labels['action_box']}:*
-├── {labels['entry']}: {currency} {entry_price:,.2f}
-├── {labels['stop_loss']}: {currency} {stop_loss_price:,.2f} ({stop_loss_pct:+.1f}%)
-├── {labels['target']} 1: {currency} {target_1:,.2f} ({target_1_pct:+.1f}%)
-├── {labels['target']} 2: {currency} {target_2:,.2f} ({target_2_pct:+.1f}%)
-└── {labels['risk_reward']}: {risk_reward:.1f}:1
-
-📊 *{labels['analysis']}:*
-{decision_text}
 """
 
-    if budget:
-        # Use LLM-provided stop loss for risk calculation
-        if stop_loss_pct != 0:
-            risk_pct = abs(stop_loss_pct)
-        else:
-            risk_pct = 5.0  # Default 5% if not provided
+    # Handle unable to assess
+    if unable_to_assess:
+        response += f"\n⚠️ *{labels['no_assessment']}*\n"
 
-        position_size = budget * 0.4
-        max_risk = position_size * (risk_pct / 100)
+    # Strategies section
+    if strategies and signal_raw in ["LONG", "SHORT"]:
+        response += f"""
+🎯 *{labels['strategies']} ({signal}):*
+"""
+        for strat_key, strat_name, strat_emoji in [("conservative", labels["conservative"], "🟢"), ("moderate", labels["moderate"], "🟡"), ("aggressive", labels["aggressive"], "🔴")]:
+            strat = strategies.get(strat_key, {})
+            ko = strat.get("ko_level_usd", 0)
+            dist = strat.get("distance_pct", 0)
+            risk = risk_labels.get(strat.get("risk", "medium"), labels["medium"])
+            response += f"""{strat_emoji} *{strat_name}:* KO ${ko:,.0f} ({dist:.1f}%) - {risk}
+"""
+
+    # HOLD with alternative
+    if signal_raw == "HOLD" and hold_alternative:
+        alt_dir = hold_alternative.get("direction", "LONG")
+        alt_strategies = hold_alternative.get("strategies", {})
+        alt_emoji = "📈" if alt_dir == "LONG" else "📉"
 
         response += f"""
-💰 *{labels['position']} (Budget: €{budget:,.0f}):*
-├── {labels['recommended']}: €{budget * 0.3:,.0f} - €{budget * 0.5:,.0f}
-├── {labels['stop_loss']}: {currency} {stop_loss_price:,.2f} ({stop_loss_pct:+.1f}%)
-└── {labels['max_risk']}: €{max_risk:,.0f}
+{alt_emoji} *{labels['alternative']} ({alt_dir}):*
+"""
+        for strat_key, strat_name, strat_emoji in [("conservative", labels["conservative"], "🟢"), ("moderate", labels["moderate"], "🟡"), ("aggressive", labels["aggressive"], "🔴")]:
+            strat = alt_strategies.get(strat_key, {})
+            ko = strat.get("ko_level_usd", 0)
+            dist = strat.get("distance_pct", 0)
+            risk = risk_labels.get(strat.get("risk", "medium"), labels["medium"])
+            response += f"""{strat_emoji} *{strat_name}:* KO ${ko:,.0f} ({dist:.1f}%) - {risk}
 """
 
-    response += f"\n📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})"
+    # Support zones
+    if support_zones:
+        response += f"""
+
+📉 *{labels['support']}:*"""
+        for zone in support_zones[:4]:  # Max 4 zones
+            level = zone.get("level_usd", 0)
+            desc = zone.get("description", "")[:40]
+            response += f"""
+├── ${level:,.2f} - {desc}"""
+
+    # Resistance zones
+    if resistance_zones:
+        response += f"""
+
+📈 *{labels['resistance']}:*"""
+        for zone in resistance_zones[:4]:  # Max 4 zones
+            level = zone.get("level_usd", 0)
+            desc = zone.get("description", "")[:40]
+            response += f"""
+├── ${level:,.2f} - {desc}"""
+
+    # Detailed analysis
+    if detailed_analysis:
+        # Truncate if too long
+        analysis_preview = detailed_analysis[:800]
+        if len(detailed_analysis) > 800:
+            analysis_preview += "..."
+        response += f"""
+
+📊 *{labels['analysis']}:*
+{analysis_preview}"""
+
+    response += f"""
+
+📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})"""
+
     return response.strip()
 
 
 def format_knockout_result(symbol: str, direction: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
-    """Format knockout analysis for Telegram with language support."""
-    decision_text = result.get("final_trade_decision", "")
+    """Format knockout analysis for Telegram with new table-based format."""
     trade = result.get("trade_decision", {})  # Structured data from JSON
-    currency = stock_data['currency']
-    price = stock_data["price"]
     is_de = lang == "de"
 
-    # Get signal from structured data (reliable!)
+    # Get all values from structured LLM response
     signal_raw = trade.get("signal", "HOLD").upper()
     confidence = trade.get("confidence", 0.5)
+    price_usd = trade.get("price_usd", stock_data['price'])
+    price_eur = trade.get("price_eur", price_usd * 0.96)
+    strategies = trade.get("strategies", {})
+    support_zones = trade.get("support_zones", [])
+    resistance_zones = trade.get("resistance_zones", [])
+    detailed_analysis = trade.get("detailed_analysis", result.get("final_trade_decision", ""))
 
-    # Get LLM-provided targets
-    target_1 = trade.get("target_1_price", 0)
-    target_1_pct = trade.get("target_1_pct", 0)
-    target_2 = trade.get("target_2_price", 0)
-    target_2_pct = trade.get("target_2_pct", 0)
-    stop_loss_price = trade.get("stop_loss_price", 0)
-
-    # Calculate KO level based on direction
-    if direction == "long":
+    # Determine if direction matches signal
+    direction_upper = direction.upper()
+    if direction_upper == "LONG":
         emoji = "📈"
-        ko_level = stock_data["recent_low"] * 0.95  # 5% below support
-        distance = ((price - ko_level) / price) * 100
-        # Fallback targets if LLM didn't provide
-        if target_1 == 0:
-            target_1 = price * 1.05
-            target_1_pct = 5.0
-        if target_2 == 0:
-            target_2 = price * 1.10
-            target_2_pct = 10.0
-    else:
-        emoji = "📉"
-        ko_level = stock_data["recent_high"] * 1.05  # 5% above resistance
-        distance = ((ko_level - price) / price) * 100
-        # Fallback targets if LLM didn't provide
-        if target_1 == 0:
-            target_1 = price * 0.95
-            target_1_pct = -5.0
-        if target_2 == 0:
-            target_2 = price * 0.90
-            target_2_pct = -10.0
-
-    leverage = min(10, max(2, int(100 / distance)))
-
-    # Determine recommendation based on signal and direction (from structured data!)
-    if direction == "long":
-        # For LONG: BUY = ✅ empfohlen, SELL = ❌ nicht empfohlen
-        if signal_raw == "BUY":
+        # For LONG: LONG signal = ✅, SHORT signal = ❌
+        if signal_raw == "LONG":
             signal_emoji = "✅"
             signal_text = "EMPFOHLEN" if is_de else "RECOMMENDED"
-        elif signal_raw == "SELL":
+        elif signal_raw == "SHORT":
             signal_emoji = "❌"
             signal_text = "NICHT EMPFOHLEN" if is_de else "NOT RECOMMENDED"
         else:
             signal_emoji = "⚠️"
             signal_text = "NEUTRAL"
     else:
-        # For SHORT: SELL = ✅ empfohlen, BUY = ❌ nicht empfohlen
-        if signal_raw == "SELL":
+        emoji = "📉"
+        # For SHORT: SHORT signal = ✅, LONG signal = ❌
+        if signal_raw == "SHORT":
             signal_emoji = "✅"
             signal_text = "EMPFOHLEN" if is_de else "RECOMMENDED"
-        elif signal_raw == "BUY":
+        elif signal_raw == "LONG":
             signal_emoji = "❌"
             signal_text = "NICHT EMPFOHLEN" if is_de else "NOT RECOMMENDED"
         else:
@@ -285,57 +294,101 @@ def format_knockout_result(symbol: str, direction: str, result: dict, stock_data
 
     # Labels
     labels = {
-        "price": "Price" if lang == "en" else "Kurs",
-        "confidence": "Confidence" if lang == "en" else "Konfidenz",
-        "ko_rec": "Knockout Recommendation" if lang == "en" else "Knockout-Empfehlung",
-        "ko_level": "KO Level" if lang == "en" else "KO-Level",
-        "distance": "Distance" if lang == "en" else "Abstand",
-        "leverage": "Rec. Leverage" if lang == "en" else "Empf. Hebel",
-        "support": "Support",
-        "targets": "Price Targets" if lang == "en" else "Kursziele",
+        "price": "Price" if not is_de else "Kurs",
+        "confidence": "Confidence" if not is_de else "Konfidenz",
+        "strategies": "Knockout Strategies" if not is_de else "Knockout-Strategien",
+        "strategy": "Strategy" if not is_de else "Strategie",
+        "ko_level": "KO-Level",
+        "distance": "Distance" if not is_de else "Abstand",
+        "risk": "Risk" if not is_de else "Risiko",
+        "conservative": "Conservative" if not is_de else "Konservativ",
+        "moderate": "Moderate" if not is_de else "Moderat",
+        "aggressive": "Aggressive" if not is_de else "Aggressiv",
+        "support": "Support Zones" if not is_de else "Unterstützungszonen",
+        "resistance": "Resistance Zones" if not is_de else "Widerstandszonen",
+        "analysis": "Analysis" if not is_de else "Analyse",
         "position": "Position",
-        "investment": "Rec. Investment" if lang == "en" else "Empf. Einsatz",
-        "max_loss": "Max Loss (KO)" if lang == "en" else "Max Verlust (KO)",
-        "analysis": "Analysis" if lang == "en" else "Analyse",
-        "risk": "At KO = Total Loss!" if lang == "en" else "Bei KO = Totalverlust!",
+        "investment": "Rec. Investment" if not is_de else "Empf. Einsatz",
+        "max_loss": "Max Loss (KO)" if not is_de else "Max Verlust (KO)",
+        "risk_warning": "At KO = Total Loss!" if not is_de else "Bei KO = Totalverlust!",
+        "low": "Low" if not is_de else "Niedrig",
+        "medium": "Medium" if not is_de else "Mittel",
+        "high": "High" if not is_de else "Hoch",
     }
 
+    # Risk label translation
+    risk_labels = {"low": labels["low"], "medium": labels["medium"], "high": labels["high"]}
+
     response = f"""
-{emoji} *{direction.upper()} KNOCKOUT: {symbol}*
+{emoji} *{direction_upper} KNOCKOUT: {symbol}*
 _{stock_data['name']}_
 
-{signal_emoji} *TL;DR: {direction.upper()} {signal_text}*
+{signal_emoji} *TL;DR: {direction_upper} {signal_text}*
 📊 *{labels['confidence']}:* {conf_display} {confidence:.0%}
 
-💵 *{labels['price']}:* {currency} {price:,.2f}
-
-🎯 *{labels['ko_rec']}:*
-├── {labels['ko_level']}: {currency} {ko_level:,.2f}
-├── {labels['distance']}: {distance:.1f}%
-├── {labels['leverage']}: {leverage}x
-└── {labels['support']}: {currency} {stock_data['recent_low']:,.2f}
-
-📊 *{labels['targets']}:*
-├── Target 1: {currency} {target_1:,.2f} ({target_1_pct:+.1f}%)
-└── Target 2: {currency} {target_2:,.2f} ({target_2_pct:+.1f}%)
+💵 *{labels['price']}:* ${price_usd:,.2f} / €{price_eur:,.2f}
 """
 
+    # Strategies section
+    if strategies:
+        response += f"""
+🎯 *{labels['strategies']} ({direction_upper}):*
+"""
+        for strat_key, strat_name, strat_emoji in [("conservative", labels["conservative"], "🟢"), ("moderate", labels["moderate"], "🟡"), ("aggressive", labels["aggressive"], "🔴")]:
+            strat = strategies.get(strat_key, {})
+            ko = strat.get("ko_level_usd", 0)
+            dist = strat.get("distance_pct", 0)
+            risk = risk_labels.get(strat.get("risk", "medium"), labels["medium"])
+            response += f"""{strat_emoji} *{strat_name}:* KO ${ko:,.0f} ({dist:.1f}%) - {risk}
+"""
+
+    # Support zones (relevant for LONG)
+    if support_zones and direction_upper == "LONG":
+        response += f"""
+
+📉 *{labels['support']}:*"""
+        for zone in support_zones[:3]:
+            level = zone.get("level_usd", 0)
+            desc = zone.get("description", "")[:35]
+            response += f"""
+├── ${level:,.2f} - {desc}"""
+
+    # Resistance zones (relevant for SHORT)
+    if resistance_zones and direction_upper == "SHORT":
+        response += f"""
+
+📈 *{labels['resistance']}:*"""
+        for zone in resistance_zones[:3]:
+            level = zone.get("level_usd", 0)
+            desc = zone.get("description", "")[:35]
+            response += f"""
+├── ${level:,.2f} - {desc}"""
+
+    # Budget calculation
     if budget:
         investment = budget * 0.2
         response += f"""
+
 💰 *{labels['position']} (Budget: €{budget:,.0f}):*
 ├── {labels['investment']}: €{investment:,.0f}
-└── {labels['max_loss']}: €{investment:,.0f}
-"""
+└── {labels['max_loss']}: €{investment:,.0f}"""
+
+    # Detailed analysis (truncated)
+    if detailed_analysis:
+        analysis_preview = detailed_analysis[:600]
+        if len(detailed_analysis) > 600:
+            analysis_preview += "..."
+        response += f"""
+
+📊 *{labels['analysis']}:*
+{analysis_preview}"""
 
     response += f"""
-💡 *{labels['analysis']}:*
-{decision_text}
 
-⚠️ *Risiko:* {labels['risk']}
+⚠️ *{labels['risk_warning']}*
 
-📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})
-"""
+📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})"""
+
     return response.strip()
 
 
