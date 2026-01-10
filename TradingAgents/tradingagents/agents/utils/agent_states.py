@@ -51,6 +51,7 @@ class AgentState(MessagesState):
     company_of_interest: Annotated[str, "Company that we are interested in trading"]
     trade_date: Annotated[str, "What date we are trading at"]
     output_language: Annotated[str, "Output language code (en=English, de=German)"]
+    forced_direction: Annotated[str, "Forced direction: 'long', 'short', or None (LLM decides)"]
 
     sender: Annotated[str, "Agent that sent this message"]
 

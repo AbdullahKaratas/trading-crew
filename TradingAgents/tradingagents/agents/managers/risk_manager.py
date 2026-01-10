@@ -71,6 +71,7 @@ def create_risk_manager(llm, memory):
 
         company_name = state["company_of_interest"]
         output_language = state.get("output_language", "en")
+        forced_direction = state.get("forced_direction")  # "long", "short", or None
 
         history = state["risk_debate_state"]["history"]
         risk_debate_state = state["risk_debate_state"]
@@ -93,7 +94,19 @@ def create_risk_manager(llm, memory):
         else:
             language_instruction = ""
 
-        prompt = f"""{language_instruction}As the Risk Management Judge and Debate Facilitator, your goal is to evaluate the debate between three risk analysts—Risky, Neutral, and Safe/Conservative—and determine the best course of action for the trader.
+        # Forced direction instruction
+        if forced_direction:
+            direction_upper = forced_direction.upper()
+            direction_instruction = f"""
+**IMPORTANT: FORCED DIRECTION = {direction_upper}**
+The user has explicitly requested a {direction_upper} analysis. Your signal MUST be "{direction_upper}".
+Provide knockout strategies for a {direction_upper} position regardless of whether you would normally recommend this direction.
+Still provide honest analysis of risks and opportunities, but the final signal must be {direction_upper}.
+"""
+        else:
+            direction_instruction = ""
+
+        prompt = f"""{language_instruction}{direction_instruction}As the Risk Management Judge and Debate Facilitator, your goal is to evaluate the debate between three risk analysts—Risky, Neutral, and Safe/Conservative—and determine the best course of action for the trader.
 
 Your decision must result in a clear recommendation:
 - **LONG**: Buy/go long on the asset

@@ -33,6 +33,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           COMMAND: ${{ github.event.client_payload.command }}
           SYMBOL: ${{ github.event.client_payload.symbol }}
+          DIRECTION: ${{ github.event.client_payload.direction }}
           BUDGET: ${{ github.event.client_payload.budget }}
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
           USER_ID: ${{ github.event.client_payload.user_id }}

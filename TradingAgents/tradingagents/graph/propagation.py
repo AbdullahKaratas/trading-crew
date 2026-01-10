@@ -16,14 +16,22 @@ class Propagator:
         self.max_recur_limit = max_recur_limit
 
     def create_initial_state(
-        self, company_name: str, trade_date: str, output_language: str = "en"
+        self, company_name: str, trade_date: str, output_language: str = "en", forced_direction: str = None
     ) -> Dict[str, Any]:
-        """Create the initial state for the agent graph."""
+        """Create the initial state for the agent graph.
+
+        Args:
+            company_name: Stock ticker symbol
+            trade_date: Date for the analysis
+            output_language: Output language ("en" or "de")
+            forced_direction: Optional forced direction ("long" or "short"). If None, LLM decides.
+        """
         return {
             "messages": [("human", company_name)],
             "company_of_interest": company_name,
             "trade_date": str(trade_date),
             "output_language": output_language,
+            "forced_direction": forced_direction,  # "long", "short", or None
             "investment_debate_state": InvestDebateState(
                 {"history": "", "current_response": "", "count": 0}
             ),

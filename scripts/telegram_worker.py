@@ -259,164 +259,6 @@ _{stock_data['name']}_
     return response.strip()
 
 
-def format_knockout_result(symbol: str, direction: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
-    """Format knockout analysis for Telegram with new table-based format."""
-    trade = result.get("trade_decision") or {}  # Structured data from JSON
-    is_de = lang == "de"
-
-    # Get all values from structured LLM response - NO FALLBACKS
-    signal_raw = trade.get("signal", "—").upper()
-    confidence = trade.get("confidence")  # None if missing
-    price_usd = trade.get("price_usd")  # None if missing
-    price_eur = trade.get("price_eur")  # None if missing
-    strategies = trade.get("strategies") or {}
-    support_zones = trade.get("support_zones") or []
-    resistance_zones = trade.get("resistance_zones") or []
-    detailed_analysis = trade.get("detailed_analysis") or ""
-
-    # Determine if direction matches signal
-    direction_upper = direction.upper()
-    if direction_upper == "LONG":
-        emoji = "📈"
-        # For LONG: LONG signal = ✅, SHORT signal = ❌
-        if signal_raw == "LONG":
-            signal_emoji = "✅"
-            signal_text = "EMPFOHLEN" if is_de else "RECOMMENDED"
-        elif signal_raw == "SHORT":
-            signal_emoji = "❌"
-            signal_text = "NICHT EMPFOHLEN" if is_de else "NOT RECOMMENDED"
-        else:
-            signal_emoji = "⚠️"
-            signal_text = "NEUTRAL"
-    else:
-        emoji = "📉"
-        # For SHORT: SHORT signal = ✅, LONG signal = ❌
-        if signal_raw == "SHORT":
-            signal_emoji = "✅"
-            signal_text = "EMPFOHLEN" if is_de else "RECOMMENDED"
-        elif signal_raw == "LONG":
-            signal_emoji = "❌"
-            signal_text = "NICHT EMPFOHLEN" if is_de else "NOT RECOMMENDED"
-        else:
-            signal_emoji = "⚠️"
-            signal_text = "NEUTRAL"
-
-    # Confidence bar visualization
-    if confidence is not None:
-        conf_bars = int(confidence * 10)
-        conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
-        conf_text = f"{conf_display} {confidence:.0%}"
-    else:
-        conf_text = "—"
-
-    # Price display
-    if price_usd is not None and price_eur is not None:
-        price_text = f"${price_usd:,.2f} / €{price_eur:,.2f}"
-    elif price_usd is not None:
-        price_text = f"${price_usd:,.2f}"
-    else:
-        price_text = "—"
-
-    # Labels
-    labels = {
-        "price": "Price" if not is_de else "Kurs",
-        "confidence": "Confidence" if not is_de else "Konfidenz",
-        "strategies": "Knockout Strategies" if not is_de else "Knockout-Strategien",
-        "strategy": "Strategy" if not is_de else "Strategie",
-        "ko_level": "KO-Level",
-        "distance": "Distance" if not is_de else "Abstand",
-        "risk": "Risk" if not is_de else "Risiko",
-        "conservative": "Conservative" if not is_de else "Konservativ",
-        "moderate": "Moderate" if not is_de else "Moderat",
-        "aggressive": "Aggressive" if not is_de else "Aggressiv",
-        "support": "Support Zones" if not is_de else "Unterstützungszonen",
-        "resistance": "Resistance Zones" if not is_de else "Widerstandszonen",
-        "analysis": "Analysis" if not is_de else "Analyse",
-        "position": "Position",
-        "investment": "Rec. Investment" if not is_de else "Empf. Einsatz",
-        "max_loss": "Max Loss (KO)" if not is_de else "Max Verlust (KO)",
-        "risk_warning": "At KO = Total Loss!" if not is_de else "Bei KO = Totalverlust!",
-        "low": "Low" if not is_de else "Niedrig",
-        "medium": "Medium" if not is_de else "Mittel",
-        "high": "High" if not is_de else "Hoch",
-    }
-
-    # Risk label translation
-    risk_labels = {"low": labels["low"], "medium": labels["medium"], "high": labels["high"]}
-
-    response = f"""
-{emoji} *{direction_upper} KNOCKOUT: {symbol}*
-_{stock_data['name']}_
-
-{signal_emoji} *TL;DR: {direction_upper} {signal_text}*
-📊 *{labels['confidence']}:* {conf_text}
-
-💵 *{labels['price']}:* {price_text}
-"""
-
-    # Strategies section
-    if strategies:
-        response += f"""
-🎯 *{labels['strategies']} ({direction_upper}):*
-"""
-        for strat_key, strat_name, strat_emoji in [("conservative", labels["conservative"], "🟢"), ("moderate", labels["moderate"], "🟡"), ("aggressive", labels["aggressive"], "🔴")]:
-            strat = strategies.get(strat_key, {})
-            ko = strat.get("ko_level_usd", 0)
-            dist = strat.get("distance_pct", 0)
-            risk = risk_labels.get(strat.get("risk", "medium"), labels["medium"])
-            response += f"""{strat_emoji} *{strat_name}:* KO ${ko:,.0f} ({dist:.1f}%) - {risk}
-"""
-
-    # Support zones (relevant for LONG)
-    if support_zones and direction_upper == "LONG":
-        response += f"""
-
-📉 *{labels['support']}:*"""
-        for zone in support_zones[:3]:
-            level = zone.get("level_usd", 0)
-            desc = zone.get("description", "")[:35]
-            response += f"""
-├── ${level:,.2f} - {desc}"""
-
-    # Resistance zones (relevant for SHORT)
-    if resistance_zones and direction_upper == "SHORT":
-        response += f"""
-
-📈 *{labels['resistance']}:*"""
-        for zone in resistance_zones[:3]:
-            level = zone.get("level_usd", 0)
-            desc = zone.get("description", "")[:35]
-            response += f"""
-├── ${level:,.2f} - {desc}"""
-
-    # Budget calculation
-    if budget:
-        investment = budget * 0.2
-        response += f"""
-
-💰 *{labels['position']} (Budget: €{budget:,.0f}):*
-├── {labels['investment']}: €{investment:,.0f}
-└── {labels['max_loss']}: €{investment:,.0f}"""
-
-    # Detailed analysis (truncated)
-    if detailed_analysis:
-        analysis_preview = detailed_analysis[:600]
-        if len(detailed_analysis) > 600:
-            analysis_preview += "..."
-        response += f"""
-
-📊 *{labels['analysis']}:*
-{analysis_preview}"""
-
-    response += f"""
-
-⚠️ *{labels['risk_warning']}*
-
-📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})"""
-
-    return response.strip()
-
-
 def is_commodity(symbol: str) -> bool:
     """Check if symbol is a commodity/futures (ends with =F)."""
     return symbol.endswith("=F")
@@ -508,8 +350,14 @@ IMPORTANT: Write your ENTIRE response in {lang_name}."""
     }
 
 
-def run_analysis(symbol: str, lang: str = "en") -> dict:
-    """Run analysis - uses commodity analyzer for futures, TradingAgents for stocks."""
+def run_analysis(symbol: str, lang: str = "en", forced_direction: str = None) -> dict:
+    """Run analysis - uses commodity analyzer for futures, TradingAgents for stocks.
+
+    Args:
+        symbol: Stock ticker or commodity symbol
+        lang: Output language ("en" or "de")
+        forced_direction: Optional forced direction ("long" or "short"). If None, LLM decides.
+    """
 
     # Check if this is a commodity/futures symbol
     if is_commodity(symbol):
@@ -529,13 +377,14 @@ def run_analysis(symbol: str, lang: str = "en") -> dict:
         "max_debate_rounds": 2,
         "max_risk_discuss_rounds": 1,
         "output_language": lang,  # Pass language to generate output directly in target language
+        "forced_direction": forced_direction,  # Pass forced direction to risk manager
     })
 
     ta = TradingAgentsGraph(debug=False, config=config)
     today = date.today().isoformat()
 
-    # Pass language to propagate - model will generate in target language directly
-    final_state, decision = ta.propagate(symbol, today, output_language=lang)
+    # Pass language and forced direction to propagate
+    final_state, decision = ta.propagate(symbol, today, output_language=lang, forced_direction=forced_direction)
 
     return final_state
 
@@ -545,6 +394,7 @@ def main():
     # Get environment variables
     command = os.environ.get("COMMAND", "analyze")
     symbol = os.environ.get("SYMBOL", "").upper()
+    direction = os.environ.get("DIRECTION", "").lower() or None  # "long", "short", or None
     budget_str = os.environ.get("BUDGET", "")
     chat_id = os.environ.get("CHAT_ID")
     username = os.environ.get("USERNAME", "User")
@@ -553,6 +403,15 @@ def main():
     # Validate language
     if lang not in ["de", "en"]:
         lang = "de"
+
+    # Validate direction
+    if direction and direction not in ["long", "short"]:
+        direction = None
+
+    # Legacy support: /long and /short commands map to direction
+    if command in ["long", "short"]:
+        direction = command
+        command = "analyze"
 
     if not symbol:
         msg = "❌ No symbol provided." if lang == "en" else "❌ Kein Symbol angegeben."
@@ -565,22 +424,20 @@ def main():
 
     budget = float(budget_str) if budget_str and budget_str != "null" else None
 
-    print(f"Running {command} analysis for {symbol} (budget: {budget}, lang: {lang})")
+    direction_str = f" ({direction.upper()})" if direction else ""
+    print(f"Running analysis for {symbol}{direction_str} (budget: {budget}, lang: {lang})")
 
     try:
         # Get stock data
         stock_data = get_stock_data(symbol)
         print(f"Stock: {stock_data['name']} @ {stock_data['price']:.2f}")
 
-        # Run analysis
-        result = run_analysis(symbol, lang)
+        # Run analysis with optional forced direction
+        result = run_analysis(symbol, lang, forced_direction=direction)
         print("Analysis complete")
 
-        # Format and send result
-        if command in ["long", "short"]:
-            message = format_knockout_result(symbol, command, result, stock_data, budget, lang)
-        else:
-            message = format_analyze_result(symbol, result, stock_data, budget, lang)
+        # Format and send result (always use format_analyze_result now)
+        message = format_analyze_result(symbol, result, stock_data, budget, lang)
 
         success = send_telegram_message(chat_id, message)
 

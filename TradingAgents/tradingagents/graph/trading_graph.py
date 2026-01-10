@@ -179,17 +179,25 @@ class TradingAgentsGraph:
             ),
         }
 
-    def propagate(self, company_name, trade_date, output_language: str = None):
-        """Run the trading agents graph for a company on a specific date."""
+    def propagate(self, company_name, trade_date, output_language: str = None, forced_direction: str = None):
+        """Run the trading agents graph for a company on a specific date.
+
+        Args:
+            company_name: Stock ticker symbol
+            trade_date: Date for the analysis
+            output_language: Output language ("en" or "de")
+            forced_direction: Optional forced direction ("long" or "short"). If None, LLM decides.
+        """
 
         self.ticker = company_name
 
-        # Get output language from config or parameter
+        # Get output language and forced direction from config or parameter
         lang = output_language or self.config.get("output_language", "en")
+        direction = forced_direction or self.config.get("forced_direction")
 
         # Initialize state
         init_agent_state = self.propagator.create_initial_state(
-            company_name, trade_date, lang
+            company_name, trade_date, lang, direction
         )
         args = self.propagator.get_graph_args()
 
