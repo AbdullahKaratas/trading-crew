@@ -2,8 +2,23 @@
 # Stocks are rotated by day of week to save API costs
 # ~3 stocks per day = ~15 Anthropic calls/day instead of 100+
 
-# Day rotation: monday, tuesday, wednesday, thursday, friday
+# Day rotation: sunday, monday, tuesday, wednesday, thursday, friday
 watchlist:
+  # SUNDAY - Blue Chip Tech Giants (Week Preparation)
+  bluechips:
+    - symbol: NVDA
+      name: NVIDIA
+      day: sunday
+    - symbol: GOOGL
+      name: Alphabet (Google)
+      day: sunday
+    - symbol: AAPL
+      name: Apple
+      day: sunday
+    - symbol: MSFT
+      name: Microsoft
+      day: sunday
+
   # MONDAY - AI Infrastructure
   ai_infrastructure:
     - symbol: APLD

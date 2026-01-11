@@ -5,6 +5,8 @@ on:
     # 14:30 CET = 13:30 UTC (Winter) / 12:30 UTC (Summer)
     # 1 hour before US Market Open - catches 8:30 EST economic data
     - cron: '30 13 * * 1-5'  # Monday to Friday
+    # Sunday 18:00 CET = 17:00 UTC - Blue Chips for week preparation
+    - cron: '0 17 * * 0'     # Sunday
 
   # Allow manual trigger for testing
   workflow_dispatch:
