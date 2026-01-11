@@ -243,13 +243,13 @@ _{stock_data['name']}_
 
     # Detailed analysis
     if detailed_analysis:
-        # Truncate if too long
-        analysis_preview = detailed_analysis[:800]
-        if len(detailed_analysis) > 800:
+        # Allow longer analysis for full debate summary (up to 2500 chars)
+        analysis_preview = detailed_analysis[:2500]
+        if len(detailed_analysis) > 2500:
             analysis_preview += "..."
         response += f"""
 
-📊 *{labels['analysis']}:*
+💡 *{labels['analysis']}:*
 {analysis_preview}"""
 
     response += f"""
