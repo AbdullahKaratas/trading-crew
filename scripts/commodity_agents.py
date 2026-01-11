@@ -100,7 +100,7 @@ def call_gemini_deep_think(prompt: str) -> str:
     client = get_gemini_client()
 
     response = client.models.generate_content(
-        model="gemini-2.5-pro-preview-06-05",
+        model="gemini-3-flash-preview",
         contents=prompt
     )
 
