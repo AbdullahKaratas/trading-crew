@@ -8,6 +8,7 @@ sends a command via Telegram. It runs the analysis and sends the result back.
 
 import os
 import sys
+import time
 from pathlib import Path
 
 # Add parent directory to path
@@ -17,8 +18,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "TradingAgents"))
 import requests
 import yfinance as yf
 from datetime import date
+from google import genai
+from google.genai import types
 
 from tradingagents.graph.trading_graph import TradingAgentsGraph
+
+# Commodities that need Gemini + Search (yfinance doesn't work for these)
+COMMODITIES = ["silver", "gold"]
 
 
 def send_telegram_message(chat_id: str, text: str) -> bool:
@@ -56,14 +62,99 @@ def send_telegram_message(chat_id: str, text: str) -> bool:
         })
         success = success and response.ok
         if len(messages) > 1 and i < len(messages) - 1:
-            import time
             time.sleep(0.5)  # Small delay between messages
 
     return success
 
 
+def is_commodity(symbol: str) -> bool:
+    """Check if symbol is a commodity (silver, gold, etc.)."""
+    return symbol.lower() in COMMODITIES
+
+
+def get_commodity_spot_price(commodity: str) -> dict:
+    """Get current spot price for a commodity using Gemini + Google Search.
+
+    Returns dict with price_usd, source, and commodity name.
+    """
+    import json
+    import re
+
+    client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
+
+    commodity_lower = commodity.lower()
+    commodity_name = commodity_lower.capitalize()
+
+    prompt = f"""Search for the current {commodity_name} spot price in USD per ounce.
+Return ONLY a JSON object with the exact current price (no markdown, no explanation):
+{{"price_usd": 80.15, "source": "kitco.com"}}"""
+
+    response = client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())]
+        )
+    )
+
+    # Parse the JSON response
+    text = response.text.strip()
+    # Remove markdown code blocks if present
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
+
+    try:
+        data = json.loads(text)
+        return {
+            "price": data.get("price_usd", 0),
+            "source": data.get("source", "unknown"),
+            "name": commodity_name,
+        }
+    except json.JSONDecodeError:
+        # Fallback: try to extract price from text
+        match = re.search(r'\$?([\d,]+\.?\d*)', text)
+        if match:
+            price = float(match.group(1).replace(",", ""))
+            return {"price": price, "source": "extracted", "name": commodity_name}
+        raise ValueError(f"Could not parse commodity price from: {text}")
+
+
 def get_stock_data(symbol: str) -> dict:
-    """Get current stock data with support/resistance levels."""
+    """Get current stock/commodity data with support/resistance levels.
+
+    For commodities (silver, gold), uses Gemini + Search for spot price.
+    For stocks, uses yfinance.
+    """
+    # Check if this is a commodity - use Gemini + Search instead of yfinance
+    if is_commodity(symbol):
+        commodity_data = get_commodity_spot_price(symbol)
+        current_price = commodity_data["price"]
+
+        # For commodities, we don't have historical data from yfinance
+        # Support/resistance will come from the LLM analysis
+        return {
+            "name": commodity_data["name"],
+            "price": current_price,
+            "currency": "USD",
+            "recent_low": current_price * 0.95,  # Placeholder
+            "recent_high": current_price * 1.05,  # Placeholder
+            "support_1": current_price * 0.95,
+            "support_2": current_price * 0.90,
+            "resistance_1": current_price * 1.05,
+            "resistance_2": current_price * 1.10,
+            "entry_zone_low": current_price * 0.98,
+            "entry_zone_high": current_price,
+            "week_52_low": current_price * 0.80,  # Placeholder
+            "week_52_high": current_price * 1.20,  # Placeholder
+            "sector": "Commodities",
+            "is_commodity": True,
+            "price_source": commodity_data["source"],
+        }
+
+    # Regular stock - use yfinance
     ticker = yf.Ticker(symbol)
     info = ticker.info
     hist = ticker.history(period="3mo")
@@ -259,112 +350,16 @@ _{stock_data['name']}_
     return response.strip()
 
 
-def is_commodity(symbol: str) -> bool:
-    """Check if symbol is a commodity/futures (ends with =F)."""
-    return symbol.endswith("=F")
-
-
-def get_commodity_name(symbol: str) -> str:
-    """Get human-readable commodity name."""
-    commodity_map = {
-        "SI=F": "Silver",
-        "GC=F": "Gold",
-        "CL=F": "Crude Oil WTI",
-        "BZ=F": "Brent Crude Oil",
-        "NG=F": "Natural Gas",
-        "HG=F": "Copper",
-        "PL=F": "Platinum",
-        "PA=F": "Palladium",
-        "ZC=F": "Corn",
-        "ZW=F": "Wheat",
-        "ZS=F": "Soybeans",
-    }
-    return commodity_map.get(symbol, symbol.replace("=F", " Futures"))
-
-
-def run_commodity_analysis(symbol: str, lang: str = "en") -> dict:
-    """Run commodity analysis using Gemini with Google Search grounding."""
-    import google.generativeai as genai
-
-    genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-
-    commodity_name = get_commodity_name(symbol)
-    today = date.today().isoformat()
-
-    # Language output instruction
-    lang_name = "German" if lang == "de" else "English"
-
-    prompt = f"""You are an experienced commodity analyst. Analyze {commodity_name} ({symbol}) for today ({today}).
-
-IMPORTANT: Use Google Search to find current information!
-
-Research and analyze:
-
-1. **Current Market Situation**
-   - Current price and daily movement
-   - Key price levels (Support/Resistance)
-   - Technical indicators (Trend, RSI, Moving Averages)
-
-2. **Fundamental Factors**
-   - Supply & Demand situation
-   - Inventories / Stockpiles
-   - Production data from relevant countries
-   - Seasonal factors
-
-3. **Market-Moving News**
-   - Geopolitical developments
-   - Central bank policy (Fed, ECB)
-   - Economic data
-   - Weather/Natural disasters (if relevant)
-
-4. **Sentiment & Positioning**
-   - COT Report (Commercials vs Speculators)
-   - ETF Flows
-   - Analyst opinions
-
-Based on your analysis, provide a clear recommendation:
-
-📋 ACTION BOX
-━━━━━━━━━━━━━━━━━━━━
-Signal: [BUY/SELL/HOLD]
-Entry: $XX.XX (ideal entry price)
-Stop-Loss: $XX.XX (-X.X%)
-Target 1: $XX.XX (+X.X%)
-Target 2: $XX.XX (+X.X%)
-Risk/Reward: X.X:1
-━━━━━━━━━━━━━━━━━━━━
-
-IMPORTANT: Write your ENTIRE response in {lang_name}."""
-
-    # Use Gemini 3 with Google Search grounding
-    model = genai.GenerativeModel(
-        "gemini-3-flash-preview",
-        tools="google_search_retrieval"
-    )
-
-    response = model.generate_content(prompt)
-
-    return {
-        "final_trade_decision": response.text,
-        "commodity_mode": True
-    }
-
-
 def run_analysis(symbol: str, lang: str = "en", forced_direction: str = None) -> dict:
-    """Run analysis - uses commodity analyzer for futures, TradingAgents for stocks.
+    """Run analysis using TradingAgents for both stocks and commodities.
 
     Args:
-        symbol: Stock ticker or commodity symbol
+        symbol: Stock ticker or commodity name (e.g., "AAPL", "Silver", "Gold")
         lang: Output language ("en" or "de")
         forced_direction: Optional forced direction ("long" or "short"). If None, LLM decides.
     """
-
-    # Check if this is a commodity/futures symbol
-    if is_commodity(symbol):
-        print(f"Detected commodity: {get_commodity_name(symbol)}")
-        return run_commodity_analysis(symbol, lang)
-
-    # Regular stock analysis with TradingAgents
+    # TradingAgents handles both stocks and commodities
+    # For commodities, the spot price is already fetched via get_stock_data()
     from tradingagents.default_config import DEFAULT_CONFIG
 
     # Start with defaults and override LLM settings

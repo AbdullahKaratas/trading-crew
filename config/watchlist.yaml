@@ -83,12 +83,3 @@ watchlist:
     - symbol: ONDS
       name: Ondas Holdings
       day: friday
-
-  # DEMO - Commodities Futures (for testing purposes)
-  commodities:
-    - symbol: GC=F
-      name: Gold Futures
-      day: demo
-    - symbol: SI=F
-      name: Silver Futures
-      day: demo
