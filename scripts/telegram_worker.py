@@ -351,15 +351,20 @@ _{stock_data['name']}_
 
 
 def run_analysis(symbol: str, lang: str = "en", forced_direction: str = None) -> dict:
-    """Run analysis using TradingAgents for both stocks and commodities.
+    """Run analysis - commodities use dedicated multi-agent system, stocks use TradingAgents.
 
     Args:
         symbol: Stock ticker or commodity name (e.g., "AAPL", "Silver", "Gold")
         lang: Output language ("en" or "de")
         forced_direction: Optional forced direction ("long" or "short"). If None, LLM decides.
     """
-    # TradingAgents handles both stocks and commodities
-    # For commodities, the spot price is already fetched via get_stock_data()
+    # Commodities use dedicated multi-agent debate system
+    if is_commodity(symbol):
+        from commodity_agents import run_commodity_analysis
+        print(f"Using Commodity Multi-Agent System for {symbol}")
+        return run_commodity_analysis(symbol, lang)
+
+    # Stocks use TradingAgents
     from tradingagents.default_config import DEFAULT_CONFIG
 
     # Start with defaults and override LLM settings
