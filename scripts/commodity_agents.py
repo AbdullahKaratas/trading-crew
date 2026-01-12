@@ -92,7 +92,7 @@ def call_gemini_with_search(prompt: str, use_search: bool = True) -> str:
         config=config
     )
 
-    return response.text
+    return response.text or ""
 
 
 def call_gemini_deep_think(prompt: str) -> str:
@@ -100,11 +100,11 @@ def call_gemini_deep_think(prompt: str) -> str:
     client = get_gemini_client()
 
     response = client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model="gemini-3-pro-preview",
         contents=prompt
     )
 
-    return response.text
+    return response.text or ""
 
 
 # =============================================================================
