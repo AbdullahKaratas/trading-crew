@@ -176,7 +176,9 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Don't send Telegram messages")
     parser.add_argument("--lang", type=str, default="de", help="Output language (de/en)")
     parser.add_argument("--delay", type=int, default=30, help="Delay between stocks in seconds")
-    parser.add_argument("--config-dir", type=str, default="config", help="Config directory path")
+    # Default config dir is relative to script location (../config from scripts/)
+    default_config = Path(__file__).parent.parent / "config"
+    parser.add_argument("--config-dir", type=str, default=str(default_config), help="Config directory path")
 
     args = parser.parse_args()
 
