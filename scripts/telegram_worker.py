@@ -65,6 +65,17 @@ def send_telegram_message(chat_id: str, text: str) -> bool:
             "parse_mode": "Markdown",
             "disable_web_page_preview": True,
         })
+        if not response.ok:
+            print(f"Telegram API error: {response.status_code}")
+            print(f"Response: {response.text[:500]}")
+            # Retry without Markdown if it fails
+            response = requests.post(url, json={
+                "chat_id": chat_id,
+                "text": msg,
+                "disable_web_page_preview": True,
+            })
+            if not response.ok:
+                print(f"Retry without Markdown also failed: {response.text[:200]}")
         success = success and response.ok
         if len(messages) > 1 and i < len(messages) - 1:
             time.sleep(0.5)  # Small delay between messages
