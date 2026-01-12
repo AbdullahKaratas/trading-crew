@@ -107,8 +107,8 @@ def run_scheduled_analysis(
             stock_data = get_stock_data(symbol)
             print(f"  Price: ${stock_data['price']:.2f}")
 
-            # Run analysis (same as /analyze command)
-            result = run_analysis(symbol, lang=lang)
+            # Run analysis (same as /analyze command) - pass current price for accuracy
+            result = run_analysis(symbol, lang=lang, current_price=stock_data['price'])
 
             # Format result
             message = format_analyze_result(symbol, result, stock_data, lang=lang)

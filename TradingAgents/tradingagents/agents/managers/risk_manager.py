@@ -72,6 +72,7 @@ def create_risk_manager(llm, memory):
         company_name = state["company_of_interest"]
         output_language = state.get("output_language", "en")
         forced_direction = state.get("forced_direction")  # "long", "short", or None
+        current_price = state.get("current_price")  # Authoritative price from yfinance
 
         history = state["risk_debate_state"]["history"]
         risk_debate_state = state["risk_debate_state"]
@@ -106,7 +107,18 @@ Still provide honest analysis of risks and opportunities, but the final signal m
         else:
             direction_instruction = ""
 
-        prompt = f"""{language_instruction}{direction_instruction}As the Risk Management Judge and Debate Facilitator, your goal is to evaluate the debate between three risk analysts—Risky, Neutral, and Safe/Conservative—and determine the best course of action for the trader.
+        # Current price instruction (authoritative source)
+        if current_price is not None:
+            price_instruction = f"""
+**CRITICAL: AUTHORITATIVE CURRENT PRICE = ${current_price:.2f} USD**
+This price is from yfinance real-time data. You MUST use this exact price in your JSON output for price_usd.
+Do NOT use any other price from the market report or your own estimation. This is the correct, verified price.
+Estimate price_eur as approximately {current_price * 0.95:.2f} EUR.
+"""
+        else:
+            price_instruction = ""
+
+        prompt = f"""{language_instruction}{direction_instruction}{price_instruction}As the Risk Management Judge and Debate Facilitator, your goal is to evaluate the debate between three risk analysts—Risky, Neutral, and Safe/Conservative—and determine the best course of action for the trader.
 
 Your decision must result in a clear recommendation:
 - **LONG**: Buy/go long on the asset

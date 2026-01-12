@@ -179,7 +179,7 @@ class TradingAgentsGraph:
             ),
         }
 
-    def propagate(self, company_name, trade_date, output_language: str = None, forced_direction: str = None):
+    def propagate(self, company_name, trade_date, output_language: str = None, forced_direction: str = None, current_price: float = None):
         """Run the trading agents graph for a company on a specific date.
 
         Args:
@@ -187,6 +187,7 @@ class TradingAgentsGraph:
             trade_date: Date for the analysis
             output_language: Output language ("en" or "de")
             forced_direction: Optional forced direction ("long" or "short"). If None, LLM decides.
+            current_price: Current price from yfinance (authoritative source for Risk Manager)
         """
 
         self.ticker = company_name
@@ -197,7 +198,7 @@ class TradingAgentsGraph:
 
         # Initialize state
         init_agent_state = self.propagator.create_initial_state(
-            company_name, trade_date, lang, direction
+            company_name, trade_date, lang, direction, current_price
         )
         args = self.propagator.get_graph_args()
 

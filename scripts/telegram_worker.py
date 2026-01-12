@@ -350,13 +350,14 @@ _{stock_data['name']}_
     return response.strip()
 
 
-def run_analysis(symbol: str, lang: str = "en", forced_direction: str = None) -> dict:
+def run_analysis(symbol: str, lang: str = "en", forced_direction: str = None, current_price: float = None) -> dict:
     """Run analysis - commodities use dedicated multi-agent system, stocks use TradingAgents.
 
     Args:
         symbol: Stock ticker or commodity name (e.g., "AAPL", "Silver", "Gold")
         lang: Output language ("en" or "de")
         forced_direction: Optional forced direction ("long" or "short"). If None, LLM decides.
+        current_price: Current price from yfinance (passed to Risk Manager as authoritative source)
     """
     # Commodities use dedicated multi-agent debate system
     if is_commodity(symbol):
@@ -383,8 +384,13 @@ def run_analysis(symbol: str, lang: str = "en", forced_direction: str = None) ->
     ta = TradingAgentsGraph(debug=False, config=config)
     today = date.today().isoformat()
 
-    # Pass language and forced direction to propagate
-    final_state, decision = ta.propagate(symbol, today, output_language=lang, forced_direction=forced_direction)
+    # Pass language, forced direction, and current price to propagate
+    final_state, decision = ta.propagate(
+        symbol, today,
+        output_language=lang,
+        forced_direction=forced_direction,
+        current_price=current_price  # Authoritative price for Risk Manager
+    )
 
     return final_state
 
@@ -427,8 +433,8 @@ def main():
         stock_data = get_stock_data(symbol)
         print(f"Stock: {stock_data['name']} @ {stock_data['price']:.2f}")
 
-        # Run analysis with optional forced direction
-        result = run_analysis(symbol, lang, forced_direction=direction)
+        # Run analysis with optional forced direction and current price
+        result = run_analysis(symbol, lang, forced_direction=direction, current_price=stock_data['price'])
         print("Analysis complete")
 
         # Format and send result (always use format_analyze_result now)

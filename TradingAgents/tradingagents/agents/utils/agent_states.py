@@ -52,6 +52,7 @@ class AgentState(MessagesState):
     trade_date: Annotated[str, "What date we are trading at"]
     output_language: Annotated[str, "Output language code (en=English, de=German)"]
     forced_direction: Annotated[str, "Forced direction: 'long', 'short', or None (LLM decides)"]
+    current_price: Annotated[float, "Current price from yfinance (authoritative, use this!)"]
 
     sender: Annotated[str, "Agent that sent this message"]
 
