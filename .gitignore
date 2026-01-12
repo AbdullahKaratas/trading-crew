@@ -109,3 +109,6 @@ config/local_*.yaml
 tmp/
 temp/
 *.tmp
+
+# Legacy evaluation logs
+eval_results/
