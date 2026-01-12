@@ -55,7 +55,7 @@ def strip_markdown_code_block(text: str) -> str:
 
 def parse_json_response(response_text: str) -> Optional[dict]:
     """
-    Parse JSON from an LLM response, handling markdown code blocks.
+    Parse JSON from an LLM response, handling markdown code blocks and surrounding text.
 
     Args:
         response_text: Raw LLM response that may contain JSON
@@ -68,10 +68,44 @@ def parse_json_response(response_text: str) -> Optional[dict]:
 
     text = strip_markdown_code_block(response_text)
 
+    # Try direct parsing first
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        return None
+        pass
+
+    # Try to find JSON object in text (handles text before/after JSON)
+    # Look for first { and last }
+    start = text.find('{')
+    end = text.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    # Try to extract from ```json ... ``` block if present
+    if '```json' in response_text:
+        try:
+            json_block = response_text.split('```json')[1].split('```')[0]
+            return json.loads(json_block.strip())
+        except (IndexError, json.JSONDecodeError):
+            pass
+
+    # Try to extract from ``` ... ``` block
+    if '```' in response_text:
+        parts = response_text.split('```')
+        for part in parts[1::2]:  # Every second part (inside ```)
+            part = part.strip()
+            if part.startswith('json'):
+                part = part[4:].strip()
+            if part.startswith('{'):
+                try:
+                    return json.loads(part)
+                except json.JSONDecodeError:
+                    continue
+
+    return None
 
 
 def extract_price_from_text(text: str) -> Optional[float]:
