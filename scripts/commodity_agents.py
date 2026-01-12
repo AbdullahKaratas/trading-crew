@@ -96,11 +96,11 @@ def call_gemini_with_search(prompt: str, use_search: bool = True) -> str:
 
 
 def call_gemini_deep_think(prompt: str) -> str:
-    """Call Gemini 3 Flash for deep thinking (judges)."""
+    """Call Gemini 3 Pro for deep thinking (judges)."""
     client = get_gemini_client()
 
     response = client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model="gemini-3-pro-preview",
         contents=prompt
     )
 
