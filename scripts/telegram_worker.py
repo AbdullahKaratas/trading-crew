@@ -351,48 +351,23 @@ _{stock_data['name']}_
 
 
 def run_analysis(symbol: str, lang: str = "en", forced_direction: str = None, current_price: float = None) -> dict:
-    """Run analysis - commodities use dedicated multi-agent system, stocks use TradingAgents.
+    """Run analysis using Universal Multi-Agent System (Gemini + Search).
+
+    All assets (stocks, commodities, ETFs) now use the same Gemini-based system
+    for real-time data via Google Search. No more yfinance/API issues.
 
     Args:
-        symbol: Stock ticker or commodity name (e.g., "AAPL", "Silver", "Gold")
+        symbol: Any asset (e.g., "AAPL", "Silver", "Gold", "SPY")
         lang: Output language ("en" or "de")
         forced_direction: Optional forced direction ("long" or "short"). If None, LLM decides.
-        current_price: Current price from yfinance (passed to Risk Manager as authoritative source)
+        current_price: Optional price hint (Gemini will verify via search)
     """
-    # Commodities use dedicated multi-agent debate system
-    if is_commodity(symbol):
-        from commodity_agents import run_commodity_analysis
-        print(f"Using Commodity Multi-Agent System for {symbol}")
-        return run_commodity_analysis(symbol, lang)
+    from universal_agents import run_universal_analysis
 
-    # Stocks use TradingAgents
-    from tradingagents.default_config import DEFAULT_CONFIG
-
-    # Start with defaults and override LLM settings
-    config = DEFAULT_CONFIG.copy()
-    config.update({
-        "llm_provider": "mixed",
-        "quick_think_llm": "gemini-3-flash-preview",
-        "deep_think_llm": "claude-opus-4-5-20251101",
-        "deep_think_fallback": "gemini-3-pro-preview",
-        "max_debate_rounds": 2,
-        "max_risk_discuss_rounds": 1,
-        "output_language": lang,  # Pass language to generate output directly in target language
-        "forced_direction": forced_direction,  # Pass forced direction to risk manager
-    })
-
-    ta = TradingAgentsGraph(debug=False, config=config)
     today = date.today().isoformat()
+    print(f"Using Universal Multi-Agent System (Gemini + Search) for {symbol}")
 
-    # Pass language, forced direction, and current price to propagate
-    final_state, decision = ta.propagate(
-        symbol, today,
-        output_language=lang,
-        forced_direction=forced_direction,
-        current_price=current_price  # Authoritative price for Risk Manager
-    )
-
-    return final_state
+    return run_universal_analysis(symbol, trade_date=today, lang=lang)
 
 
 def main():
