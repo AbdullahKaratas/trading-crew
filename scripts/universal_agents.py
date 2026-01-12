@@ -13,14 +13,18 @@ Architecture:
 5. Risk Judge - Structured JSON output
 """
 
-import os
 import json
-import re
 from datetime import date
 from typing import TypedDict
 
-from google import genai
-from google.genai import types
+from gemini_utils import (
+    call_gemini_flash,
+    call_gemini_pro,
+    extract_price_from_text,
+    get_language_instruction,
+    parse_json_response,
+    strip_markdown_code_block,
+)
 
 
 # Same JSON schema as TradingAgents
@@ -74,110 +78,25 @@ class UniversalDebateState(TypedDict):
     final_decision: dict
 
 
-def get_gemini_client():
-    """Get configured Gemini client."""
-    return genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
-
-
-def call_gemini_with_search(prompt: str, max_retries: int = 3) -> str:
-    """Call Gemini 3 Flash with Google Search grounding."""
-    import time
-    client = get_gemini_client()
-
-    config = types.GenerateContentConfig(
-        tools=[types.Tool(google_search=types.GoogleSearch())]
-    )
-
-    response = None
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model="gemini-3-flash-preview",
-                contents=prompt,
-                config=config
-            )
-            if response and response.text:
-                return response.text
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1:
-                time.sleep(5 * (attempt + 1))  # Exponential backoff
-                continue
-            raise
-
-    return (response.text if response and response.text else "") or ""
-
-
-def call_gemini_deep_think(prompt: str, max_retries: int = 3) -> str:
-    """Call Gemini Pro for deep thinking (judges)."""
-    import time
-    client = get_gemini_client()
-
-    response = None
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model="gemini-3-pro-preview",
-                contents=prompt
-            )
-            if response and response.text:
-                return response.text
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1:
-                time.sleep(5 * (attempt + 1))
-                continue
-            raise
-
-    return (response.text if response and response.text else "") or ""
-
-
-def call_gemini_pro_with_search(prompt: str, max_retries: int = 3) -> str:
-    """Call Gemini Pro with Google Search for final judge."""
-    import time
-    client = get_gemini_client()
-
-    config = types.GenerateContentConfig(
-        tools=[types.Tool(google_search=types.GoogleSearch())]
-    )
-
-    response = None
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model="gemini-3-pro-preview",
-                contents=prompt,
-                config=config
-            )
-            if response and response.text:
-                return response.text
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1:
-                time.sleep(5 * (attempt + 1))
-                continue
-            raise
-
-    return (response.text if response and response.text else "") or ""
+# Asset type detection constants
+COMMODITIES = {"silver", "gold", "oil", "copper", "platinum", "palladium"}
+CRYPTO_SYMBOLS = {"btc", "eth", "bitcoin", "ethereum"}
+ETFS = {"spy", "qqq", "iwm", "dia", "voo", "vti", "arkk", "xlf", "xle"}
 
 
 def detect_asset_type(symbol: str) -> str:
     """Detect asset type from symbol."""
     symbol_lower = symbol.lower()
 
-    # Commodities
-    if symbol_lower in ["silver", "gold", "oil", "copper", "platinum", "palladium"]:
-        return "commodity"
-    if symbol.endswith("=F"):
+    if symbol_lower in COMMODITIES or symbol.endswith("=F"):
         return "commodity"
 
-    # Crypto
-    if symbol_lower in ["btc", "eth", "bitcoin", "ethereum"] or symbol.endswith("-USD"):
+    if symbol_lower in CRYPTO_SYMBOLS or symbol.endswith("-USD"):
         return "crypto"
 
-    # ETFs (common ones)
-    etfs = ["spy", "qqq", "iwm", "dia", "voo", "vti", "arkk", "xlf", "xle"]
-    if symbol_lower in etfs:
+    if symbol_lower in ETFS:
         return "etf"
 
-    # Default to stock
     return "stock"
 
 
@@ -191,30 +110,24 @@ def data_gatherer(symbol: str, trade_date: str, lang: str = "en") -> dict:
     Works for any asset type.
     """
     asset_type = detect_asset_type(symbol)
-    lang_instruction = "Respond in German." if lang == "de" else "Respond in English."
+    lang_instruction = get_language_instruction(lang, "Respond")
 
     # 1. Get current price
     price_prompt = f"""Search for the current price of {symbol} as of {trade_date}.
 Return ONLY a JSON object (no markdown):
 {{"price_usd": 100.00, "asset_name": "Company Name", "source": "yahoo.com"}}"""
 
-    price_response = call_gemini_with_search(price_prompt) or ""
+    price_response = call_gemini_flash(price_prompt, use_search=True) or ""
 
-    # Parse price
-    try:
-        text = price_response.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-            text = text.strip()
-        price_data = json.loads(text)
+    # Parse price from response
+    price_data = parse_json_response(price_response)
+    if price_data:
         current_price = price_data.get("price_usd", 0)
         asset_name = price_data.get("asset_name", symbol)
         price_source = price_data.get("source", "unknown")
-    except (json.JSONDecodeError, ValueError, AttributeError):
-        match = re.search(r'\$?([\d,]+\.?\d*)', price_response or "")
-        current_price = float(match.group(1).replace(",", "")) if match else 0
+    else:
+        # Fallback: extract price from text
+        current_price = extract_price_from_text(price_response) or 0
         asset_name = symbol
         price_source = "extracted"
 
@@ -234,7 +147,7 @@ Provide:
 {lang_instruction}
 Keep response under 500 words."""
 
-    technical_data = call_gemini_with_search(technical_prompt) or "No technical data available."
+    technical_data = call_gemini_flash(technical_prompt, use_search=True) or "No technical data available."
 
     # 3. Get news and events
     news_prompt = f"""Search for latest news about {symbol} from {trade_date}.
@@ -249,7 +162,7 @@ Focus on:
 {lang_instruction}
 Keep response under 400 words."""
 
-    news_data = call_gemini_with_search(news_prompt) or "No recent news available."
+    news_data = call_gemini_flash(news_prompt, use_search=True) or "No recent news available."
 
     # 4. Get fundamentals (for stocks) or market context (for commodities)
     if asset_type == "stock":
@@ -280,7 +193,7 @@ Provide:
 {lang_instruction}
 Keep response under 400 words."""
 
-    fundamental_data = call_gemini_with_search(fundamental_prompt) or "No fundamental data available."
+    fundamental_data = call_gemini_flash(fundamental_prompt, use_search=True) or "No fundamental data available."
 
     return {
         "current_price": current_price,
@@ -300,10 +213,12 @@ Keep response under 400 words."""
 
 def bull_analyst(state: UniversalDebateState) -> str:
     """Bull analyst makes the case FOR going LONG."""
-    lang_instruction = "Respond entirely in German." if state["lang"] == "de" else "Respond entirely in English."
+    lang_instruction = get_language_instruction(state["lang"])
 
     bear_args = state.get("bear_arguments", "")
-    counter_section = f"\n## Bear's Arguments to Counter:\n{bear_args}\n\nDirectly address and counter each point." if bear_args else ""
+    counter_section = ""
+    if bear_args:
+        counter_section = f"\n## Bear's Arguments to Counter:\n{bear_args}\n\nDirectly address and counter each point."
 
     prompt = f"""You are a BULLISH Analyst advocating for a LONG position in {state['symbol']}.
 
@@ -331,15 +246,17 @@ Build a strong case for why {state['symbol']} will RISE. Focus on:
 Be specific with price targets. {lang_instruction}
 Keep response under 500 words."""
 
-    return call_gemini_with_search(prompt, max_retries=2)
+    return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
 
 def bear_analyst(state: UniversalDebateState) -> str:
     """Bear analyst makes the case AGAINST going long."""
-    lang_instruction = "Respond entirely in German." if state["lang"] == "de" else "Respond entirely in English."
+    lang_instruction = get_language_instruction(state["lang"])
 
     bull_args = state.get("bull_arguments", "")
-    counter_section = f"\n## Bull's Arguments to Counter:\n{bull_args}\n\nDirectly address and counter each point." if bull_args else ""
+    counter_section = ""
+    if bull_args:
+        counter_section = f"\n## Bull's Arguments to Counter:\n{bull_args}\n\nDirectly address and counter each point."
 
     prompt = f"""You are a BEARISH Analyst arguing AGAINST a long position in {state['symbol']}.
 
@@ -367,12 +284,12 @@ Build a strong case for why {state['symbol']} will FALL. Focus on:
 Be specific with downside targets. {lang_instruction}
 Keep response under 500 words."""
 
-    return call_gemini_with_search(prompt, max_retries=2)
+    return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
 
 def investment_judge(state: UniversalDebateState) -> str:
     """Investment Judge decides LONG/SHORT/HOLD."""
-    lang_instruction = "Respond entirely in German." if state["lang"] == "de" else "Respond entirely in English."
+    lang_instruction = get_language_instruction(state["lang"])
 
     prompt = f"""You are the INVESTMENT JUDGE for {state['symbol']} analysis.
 
@@ -396,7 +313,7 @@ End with exactly one of:
 {lang_instruction}
 Keep response under 400 words."""
 
-    return call_gemini_deep_think(prompt)
+    return call_gemini_pro(prompt, use_search=False)
 
 
 # =============================================================================
@@ -405,7 +322,7 @@ Keep response under 400 words."""
 
 def risky_analyst(state: UniversalDebateState) -> str:
     """Risky analyst advocates for aggressive strategies."""
-    lang_instruction = "Respond entirely in German." if state["lang"] == "de" else "Respond entirely in English."
+    lang_instruction = get_language_instruction(state["lang"])
 
     prompt = f"""You are the AGGRESSIVE Risk Analyst for {state['symbol']}.
 
@@ -420,12 +337,12 @@ Advocate for HIGH-REWARD strategies:
 Propose aggressive knockout levels. {lang_instruction}
 Keep response under 300 words."""
 
-    return call_gemini_with_search(prompt, max_retries=2)
+    return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
 
 def safe_analyst(state: UniversalDebateState) -> str:
     """Safe analyst prioritizes capital preservation."""
-    lang_instruction = "Respond entirely in German." if state["lang"] == "de" else "Respond entirely in English."
+    lang_instruction = get_language_instruction(state["lang"])
 
     prompt = f"""You are the CONSERVATIVE Risk Analyst for {state['symbol']}.
 
@@ -442,12 +359,12 @@ Advocate for CAPITAL PRESERVATION:
 Propose conservative knockout levels. {lang_instruction}
 Keep response under 300 words."""
 
-    return call_gemini_with_search(prompt, max_retries=2)
+    return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
 
 def neutral_analyst(state: UniversalDebateState) -> str:
     """Neutral analyst provides balanced perspective."""
-    lang_instruction = "Respond entirely in German." if state["lang"] == "de" else "Respond entirely in English."
+    lang_instruction = get_language_instruction(state["lang"])
 
     prompt = f"""You are the NEUTRAL Risk Analyst for {state['symbol']}.
 
@@ -468,7 +385,7 @@ Provide BALANCE:
 Propose moderate knockout levels. {lang_instruction}
 Keep response under 300 words."""
 
-    return call_gemini_with_search(prompt, max_retries=2)
+    return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
 
 # =============================================================================
@@ -477,7 +394,7 @@ Keep response under 300 words."""
 
 def risk_judge(state: UniversalDebateState) -> dict:
     """Risk Judge outputs structured JSON decision."""
-    lang_instruction = "Respond entirely in German for detailed_analysis." if state["lang"] == "de" else "Respond entirely in English for detailed_analysis."
+    lang_instruction = get_language_instruction(state["lang"], "Write")
 
     eur_rate = 0.95
     price_eur = state['current_price'] * eur_rate
@@ -485,7 +402,7 @@ def risk_judge(state: UniversalDebateState) -> dict:
     prompt = f"""You are the FINAL RISK JUDGE for {state['symbol']}.
 
 ## TODAY'S DATE: {state['today']}
-## AUTHORITATIVE PRICE: ${state['current_price']:.2f} USD / €{price_eur:.2f} EUR
+## AUTHORITATIVE PRICE: ${state['current_price']:.2f} USD / {price_eur:.2f} EUR
 
 Use Google Search to verify latest news and price for {state['symbol']} today.
 
@@ -525,32 +442,34 @@ Return ONLY valid JSON (no markdown):
 For LONG: KO levels BELOW current price
 For SHORT: KO levels ABOVE current price"""
 
-    response = call_gemini_pro_with_search(prompt) or ""
+    response = call_gemini_pro(prompt, use_search=True) or ""
 
-    # Parse JSON
-    try:
-        text = response.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-            text = text.strip()
-        if text.endswith("```"):
-            text = text[:-3].strip()
+    # Parse JSON from response
+    result = parse_json_response(response)
+    if result:
+        return result
 
-        return json.loads(text)
-    except (json.JSONDecodeError, AttributeError) as e:
-        return {
-            "signal": "IGNORE",
-            "confidence": 0.0,
-            "unable_to_assess": True,
-            "price_usd": state['current_price'],
-            "price_eur": price_eur,
-            "strategies": {},
-            "support_zones": [],
-            "resistance_zones": [],
-            "detailed_analysis": f"Error parsing: {str(e)}\n\nRaw: {(response or '')[:500]}",
-        }
+    # Return error state if parsing failed
+    return {
+        "signal": "IGNORE",
+        "confidence": 0.0,
+        "unable_to_assess": True,
+        "price_usd": state['current_price'],
+        "price_eur": price_eur,
+        "strategies": {},
+        "support_zones": [],
+        "resistance_zones": [],
+        "detailed_analysis": f"Error parsing response.\n\nRaw: {response[:500]}",
+    }
+
+
+def _extract_decision(judge_response: str) -> str:
+    """Extract investment decision from judge response text."""
+    if "**LONG**" in judge_response:
+        return "LONG"
+    if "**SHORT**" in judge_response:
+        return "SHORT"
+    return "HOLD"
 
 
 # =============================================================================
@@ -631,13 +550,8 @@ def run_universal_analysis(symbol: str, trade_date: str = None, lang: str = "en"
     judge_response = investment_judge(state)
     state["investment_debate_history"] += f"\n\n### JUDGE:\n{judge_response}"
 
-    if "**LONG**" in judge_response:
-        state["investment_decision"] = "LONG"
-    elif "**SHORT**" in judge_response:
-        state["investment_decision"] = "SHORT"
-    else:
-        state["investment_decision"] = "HOLD"
-
+    # Extract decision from judge response
+    state["investment_decision"] = _extract_decision(judge_response)
     print(f"  Decision: {state['investment_decision']}")
 
     # Phase 4: Risk Debate

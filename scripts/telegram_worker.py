@@ -6,7 +6,9 @@ This script is triggered by the telegram_analysis GitHub Action when a user
 sends a command via Telegram. It runs the analysis and sends the result back.
 """
 
+import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -18,13 +20,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "TradingAgents"))
 import requests
 import yfinance as yf
 from datetime import date
-from google import genai
-from google.genai import types
 
 from tradingagents.graph.trading_graph import TradingAgentsGraph
+from gemini_utils import (
+    call_gemini_flash,
+    extract_price_from_text,
+    parse_json_response,
+)
 
 # Commodities that need Gemini + Search (yfinance doesn't work for these)
-COMMODITIES = ["silver", "gold"]
+COMMODITIES = {"silver", "gold"}
 
 
 def send_telegram_message(chat_id: str, text: str) -> bool:
@@ -77,49 +82,29 @@ def get_commodity_spot_price(commodity: str) -> dict:
 
     Returns dict with price_usd, source, and commodity name.
     """
-    import json
-    import re
-
-    client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
-
-    commodity_lower = commodity.lower()
-    commodity_name = commodity_lower.capitalize()
+    commodity_name = commodity.lower().capitalize()
 
     prompt = f"""Search for the current {commodity_name} spot price in USD per ounce.
 Return ONLY a JSON object with the exact current price (no markdown, no explanation):
 {{"price_usd": 80.15, "source": "kitco.com"}}"""
 
-    response = client.models.generate_content(
-        model="gemini-3-flash-preview",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())]
-        )
-    )
+    response_text = call_gemini_flash(prompt, use_search=True)
 
-    # Parse the JSON response
-    text = response.text.strip()
-    # Remove markdown code blocks if present
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip()
-
-    try:
-        data = json.loads(text)
+    # Parse JSON from response
+    data = parse_json_response(response_text)
+    if data:
         return {
             "price": data.get("price_usd", 0),
             "source": data.get("source", "unknown"),
             "name": commodity_name,
         }
-    except json.JSONDecodeError:
-        # Fallback: try to extract price from text
-        match = re.search(r'\$?([\d,]+\.?\d*)', text)
-        if match:
-            price = float(match.group(1).replace(",", ""))
-            return {"price": price, "source": "extracted", "name": commodity_name}
-        raise ValueError(f"Could not parse commodity price from: {text}")
+
+    # Fallback: extract price from text
+    price = extract_price_from_text(response_text)
+    if price:
+        return {"price": price, "source": "extracted", "name": commodity_name}
+
+    raise ValueError(f"Could not parse commodity price from response")
 
 
 def get_stock_data(symbol: str) -> dict:
