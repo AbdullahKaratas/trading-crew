@@ -238,4 +238,4 @@ Apache 2.0 - See [LICENSE](LICENSE) for details.
 
 ---
 
-**Built with Gemini AI** | [Report Issues](https://github.com/AbdullahKaratas/trading-crew/issues)
+**Built with [Claude Code](https://claude.ai/code)** | [Report Issues](https://github.com/AbdullahKaratas/trading-crew/issues)
