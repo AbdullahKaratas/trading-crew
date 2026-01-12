@@ -113,6 +113,29 @@ def call_gemini_deep_think(prompt: str, max_retries: int = 3) -> str:
     return response.text or ""
 
 
+def call_gemini_pro_with_search(prompt: str, max_retries: int = 3) -> str:
+    """Call Gemini 3 Pro with Google Search for fact-checking (final judge)."""
+    import time
+    client = get_gemini_client()
+
+    config = types.GenerateContentConfig(
+        tools=[types.Tool(google_search=types.GoogleSearch())]
+    )
+
+    for attempt in range(max_retries):
+        response = client.models.generate_content(
+            model="gemini-3-pro-preview",
+            contents=prompt,
+            config=config
+        )
+        if response.text:
+            return response.text
+        if attempt < max_retries - 1:
+            time.sleep(2)  # Wait before retry
+
+    return response.text or ""
+
+
 # =============================================================================
 # PHASE 1: DATA GATHERING
 # =============================================================================
@@ -516,6 +539,11 @@ def risk_judge(state: CommodityDebateState) -> dict:
 
     prompt = f"""You are the FINAL RISK JUDGE for {state['commodity']} analysis.
 
+## TODAY'S DATE: {state['today']}
+
+CRITICAL: Before making your decision, use Google Search to verify the LATEST NEWS about {state['commodity']} from TODAY ({state['today']}).
+The analysts below may have outdated information. You MUST fact-check their claims with current news.
+
 ## Investment Decision
 {state['investment_decision']}
 
@@ -538,7 +566,9 @@ def risk_judge(state: CommodityDebateState) -> dict:
 
 ## Your Task
 
-Synthesize ALL debates and output a FINAL TRADING DECISION as JSON.
+1. FIRST: Search for the latest {state['commodity']} news from {state['today']} to verify facts
+2. THEN: Synthesize ALL debates and output a FINAL TRADING DECISION as JSON
+3. If any analyst made claims that are outdated or incorrect based on current news, note this in your analysis
 
 You MUST output ONLY valid JSON matching this schema (no markdown, no explanation):
 
@@ -586,7 +616,7 @@ IMPORTANT:
 
 Output ONLY the JSON, nothing else."""
 
-    response = call_gemini_deep_think(prompt)
+    response = call_gemini_pro_with_search(prompt)
 
     # Parse JSON response
     try:
