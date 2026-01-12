@@ -95,14 +95,20 @@ def call_gemini_with_search(prompt: str, use_search: bool = True) -> str:
     return response.text or ""
 
 
-def call_gemini_deep_think(prompt: str) -> str:
-    """Call Gemini 3 Pro for deep thinking (judges)."""
+def call_gemini_deep_think(prompt: str, max_retries: int = 3) -> str:
+    """Call Gemini 3 Pro for deep thinking (judges) with retry on empty response."""
+    import time
     client = get_gemini_client()
 
-    response = client.models.generate_content(
-        model="gemini-3-pro-preview",
-        contents=prompt
-    )
+    for attempt in range(max_retries):
+        response = client.models.generate_content(
+            model="gemini-3-pro-preview",
+            contents=prompt
+        )
+        if response.text:
+            return response.text
+        if attempt < max_retries - 1:
+            time.sleep(2)  # Wait before retry
 
     return response.text or ""
 
