@@ -43,6 +43,11 @@ TRADE_DECISION_SCHEMA = {
     "support_zones": [{"level_usd": 0.0, "description": ""}],
     "resistance_zones": [{"level_usd": 0.0, "description": ""}],
     "detailed_analysis": "",
+    "timeframes": {
+        "short_term": "LONG | SHORT | HOLD",   # Days to weeks
+        "medium_term": "LONG | SHORT | HOLD",  # Weeks to months
+        "long_term": "LONG | SHORT | HOLD",    # Months to years
+    },
 }
 
 
@@ -436,8 +441,21 @@ Return ONLY valid JSON (no markdown):
         {{"level_usd": <price>, "description": "<reason>"}},
         {{"level_usd": <price>, "description": "<reason>"}}
     ],
-    "detailed_analysis": "<300-500 word analysis. {lang_instruction}>"
+    "detailed_analysis": "<300-500 word analysis including timeframe reasoning. {lang_instruction}>",
+    "timeframes": {{
+        "short_term": "LONG or SHORT or HOLD",
+        "medium_term": "LONG or SHORT or HOLD",
+        "long_term": "LONG or SHORT or HOLD"
+    }}
 }}
+
+**Timeframe Guidelines:**
+- **short_term** (days-weeks): Based on RSI, MACD, immediate momentum
+- **medium_term** (weeks-months): Based on trend, support/resistance, earnings
+- **long_term** (months-years): Based on fundamentals, macro trends, industry position
+
+Timeframes CAN differ (e.g., SHORT short_term due to overbought, LONG long_term for strong fundamentals).
+The main "signal" should match your PRIMARY recommendation.
 
 For LONG: KO levels BELOW current price
 For SHORT: KO levels ABOVE current price"""
@@ -460,6 +478,7 @@ For SHORT: KO levels ABOVE current price"""
         "support_zones": [],
         "resistance_zones": [],
         "detailed_analysis": f"Error parsing response.\n\nRaw: {response[:500]}",
+        "timeframes": {"short_term": "HOLD", "medium_term": "HOLD", "long_term": "HOLD"},
     }
 
 

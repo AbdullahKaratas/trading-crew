@@ -1,0 +1,47 @@
+name: Telegram Comparison Worker
+
+on:
+  repository_dispatch:
+    types: [telegram_comparison]
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # Longer timeout for multiple analyses
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e TradingAgents/
+
+      - name: Run Comparison Analysis
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SYMBOLS: ${{ github.event.client_payload.symbols }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          USER_ID: ${{ github.event.client_payload.user_id }}
+          USERNAME: ${{ github.event.client_payload.username }}
+          LANG: ${{ github.event.client_payload.lang }}
+        run: python scripts/comparison_worker.py
+
+      - name: Send Error on Failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          SYMBOLS: ${{ github.event.client_payload.symbols }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"❌ Fehler beim Vergleich von ${SYMBOLS}.\", \"parse_mode\": \"Markdown\"}"

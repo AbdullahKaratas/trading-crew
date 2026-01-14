@@ -339,6 +339,26 @@ _{stock_data['name']}_
 💡 *{labels['analysis']}:*
 {analysis_preview}"""
 
+    # Timeframes section
+    timeframes = trade.get("timeframes") or {}
+    if timeframes:
+        tf_label = "Zeithorizonte" if is_de else "Timeframes"
+        tf_names = {
+            "short_term": "Kurzfristig (Tage-Wochen)" if is_de else "Short-term (days-weeks)",
+            "medium_term": "Mittelfristig (Wochen-Monate)" if is_de else "Medium-term (weeks-months)",
+            "long_term": "Langfristig (Monate-Jahre)" if is_de else "Long-term (months-years)",
+        }
+        tf_emojis = {"LONG": "🟢", "SHORT": "🔴", "HOLD": "🟡"}
+
+        response += f"""
+
+⏱️ *{tf_label}:*"""
+        for tf_key, tf_name in tf_names.items():
+            tf_signal = str(timeframes.get(tf_key, "HOLD")).upper()
+            emoji = tf_emojis.get(tf_signal, "🟡")
+            response += f"""
+├── {emoji} {tf_name}: {tf_signal}"""
+
     response += f"""
 
 📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})"""
