@@ -313,7 +313,7 @@ _{stock_data['name']}_
 📉 *{labels['support']}:*"""
         for zone in support_zones[:4]:  # Max 4 zones
             level = zone.get("level_usd", 0)
-            desc = zone.get("description", "")[:40]
+            desc = zone.get("description", "")
             response += f"""
 ├── ${level:,.2f} - {desc}"""
 
@@ -324,7 +324,7 @@ _{stock_data['name']}_
 📈 *{labels['resistance']}:*"""
         for zone in resistance_zones[:4]:  # Max 4 zones
             level = zone.get("level_usd", 0)
-            desc = zone.get("description", "")[:40]
+            desc = zone.get("description", "")
             response += f"""
 ├── ${level:,.2f} - {desc}"""
 
