@@ -66,30 +66,38 @@ def parse_json_response(response_text: str) -> Optional[dict]:
     if not response_text:
         return None
 
+    def _try_parse(text: str) -> Optional[dict]:
+        """Parse JSON and ensure result is a dict."""
+        try:
+            result = json.loads(text)
+            return result if isinstance(result, dict) else None
+        except json.JSONDecodeError:
+            return None
+
     text = strip_markdown_code_block(response_text)
 
     # Try direct parsing first
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
+    result = _try_parse(text)
+    if result:
+        return result
 
     # Try to find JSON object in text (handles text before/after JSON)
     # Look for first { and last }
     start = text.find('{')
     end = text.rfind('}')
     if start != -1 and end != -1 and end > start:
-        try:
-            return json.loads(text[start:end + 1])
-        except json.JSONDecodeError:
-            pass
+        result = _try_parse(text[start:end + 1])
+        if result:
+            return result
 
     # Try to extract from ```json ... ``` block if present
     if '```json' in response_text:
         try:
             json_block = response_text.split('```json')[1].split('```')[0]
-            return json.loads(json_block.strip())
-        except (IndexError, json.JSONDecodeError):
+            result = _try_parse(json_block.strip())
+            if result:
+                return result
+        except IndexError:
             pass
 
     # Try to extract from ``` ... ``` block
@@ -100,10 +108,9 @@ def parse_json_response(response_text: str) -> Optional[dict]:
             if part.startswith('json'):
                 part = part[4:].strip()
             if part.startswith('{'):
-                try:
-                    return json.loads(part)
-                except json.JSONDecodeError:
-                    continue
+                result = _try_parse(part)
+                if result:
+                    return result
 
     return None
 
@@ -207,6 +214,53 @@ def call_gemini_pro(prompt: str, use_search: bool = False, max_retries: int = 3)
         use_search=use_search,
         max_retries=max_retries,
     )
+
+
+def call_gemini_json(
+    prompt: str,
+    model: str = "gemini-3-pro-preview",
+    use_search: bool = False,
+    max_retries: int = 3,
+) -> Optional[dict]:
+    """
+    Call Gemini and ensure valid JSON response. Retries if LLM returns text instead of JSON.
+
+    Args:
+        prompt: The prompt to send
+        model: Gemini model to use
+        use_search: Whether to enable Google Search
+        max_retries: Max attempts to get valid JSON
+
+    Returns:
+        Parsed dict or None if all retries fail
+    """
+    last_response = ""
+
+    for attempt in range(max_retries):
+        response = call_gemini(
+            prompt=prompt,
+            model=model,
+            use_search=use_search,
+            max_retries=1,  # API retries handled separately
+        )
+        last_response = response
+
+        result = parse_json_response(response)
+        if result:
+            return result
+
+        # Retry with stronger JSON instruction
+        if attempt < max_retries - 1:
+            print(f"  JSON parse failed (attempt {attempt + 1}/{max_retries}), retrying...")
+            prompt = f"""IMPORTANT: Your previous response was not valid JSON.
+Return ONLY a valid JSON object, no markdown, no explanation, no text before or after.
+
+{prompt}"""
+            time.sleep(2)
+
+    print(f"  All {max_retries} attempts failed to get valid JSON")
+    print(f"  Last response: {last_response[:200]}...")
+    return None
 
 
 def get_language_instruction(lang: str, prefix: str = "Respond") -> str:

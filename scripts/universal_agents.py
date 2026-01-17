@@ -20,6 +20,7 @@ from typing import TypedDict
 from gemini_utils import (
     call_gemini_flash,
     call_gemini_pro,
+    call_gemini_json,
     extract_price_from_text,
     get_language_instruction,
     parse_json_response,
@@ -460,14 +461,13 @@ The main "signal" should match your PRIMARY recommendation.
 For LONG: KO levels BELOW current price
 For SHORT: KO levels ABOVE current price"""
 
-    response = call_gemini_pro(prompt, use_search=True) or ""
+    # Use call_gemini_json with automatic retry for invalid JSON
+    result = call_gemini_json(prompt, model="gemini-3-pro-preview", use_search=True, max_retries=3)
 
-    # Parse JSON from response
-    result = parse_json_response(response)
     if result:
         return result
 
-    # Return error state if parsing failed
+    # Return error state if all retries failed
     return {
         "signal": "IGNORE",
         "confidence": 0.0,
@@ -477,7 +477,7 @@ For SHORT: KO levels ABOVE current price"""
         "strategies": {},
         "support_zones": [],
         "resistance_zones": [],
-        "detailed_analysis": f"Error parsing response.\n\nRaw: {response[:500]}",
+        "detailed_analysis": "Error: Could not get valid JSON after 3 attempts.",
         "timeframes": {"short_term": "HOLD", "medium_term": "HOLD", "long_term": "HOLD"},
     }
 

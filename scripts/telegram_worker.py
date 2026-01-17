@@ -155,7 +155,46 @@ def get_stock_data(symbol: str) -> dict:
     info = ticker.info
     hist = ticker.history(period="3mo")
 
+    # If yfinance fails, try with common suffixes or fall back to Gemini
     if hist.empty:
+        # Try common European suffixes
+        for suffix in [".DE", ".L", ".PA", ".AS", ".MI", ".SW"]:
+            alt_symbol = symbol + suffix
+            ticker = yf.Ticker(alt_symbol)
+            hist = ticker.history(period="3mo")
+            if not hist.empty:
+                info = ticker.info
+                print(f"  Found {symbol} as {alt_symbol}")
+                break
+
+    # If still empty, fall back to Gemini + Search
+    if hist.empty:
+        print(f"  yfinance failed for {symbol}, using Gemini fallback")
+        prompt = f"""Search for the current stock price of {symbol} in USD.
+Return ONLY a JSON object: {{"price_usd": 123.45, "name": "Company Name", "source": "finance.yahoo.com"}}"""
+        response_text = call_gemini_flash(prompt, use_search=True)
+        data = parse_json_response(response_text)
+
+        if data and data.get("price_usd"):
+            price = data["price_usd"]
+            return {
+                "name": data.get("name", symbol),
+                "price": price,
+                "currency": "USD",
+                "recent_low": price * 0.95,
+                "recent_high": price * 1.05,
+                "support_1": price * 0.95,
+                "support_2": price * 0.90,
+                "resistance_1": price * 1.05,
+                "resistance_2": price * 1.10,
+                "entry_zone_low": price * 0.98,
+                "entry_zone_high": price,
+                "week_52_low": price * 0.80,
+                "week_52_high": price * 1.20,
+                "sector": "Unknown",
+                "price_source": "gemini_search",
+            }
+
         raise ValueError(f"No data found for {symbol}")
 
     current_price = hist["Close"].iloc[-1]

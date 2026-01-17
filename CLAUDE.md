@@ -78,6 +78,19 @@ Key fields in `TRADE_DECISION_SCHEMA`:
 | `/analyze SYMBOL de/en` | Language |
 | `/vs SYMBOL1 SYMBOL2` | Compare 2-4 assets |
 
+## Error Handling
+
+### JSON Retry Logic
+- `call_gemini_json()` automatically retries up to 3x if LLM returns text instead of JSON
+- Each retry adds "IMPORTANT: Return ONLY valid JSON" to the prompt
+- Used in `risk_judge()` for final trade decisions
+
+### yfinance Fallback
+When yfinance fails (e.g., European stocks like `EOAN`):
+1. Tries common suffixes: `.DE`, `.L`, `.PA`, `.AS`, `.MI`, `.SW`
+2. Falls back to Gemini Search for price only
+3. Support/resistance values are placeholders - actual values come from LLM analysis
+
 ## Testing
 
 ```bash
