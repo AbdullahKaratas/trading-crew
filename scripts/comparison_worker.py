@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from universal_agents import run_universal_analysis
 from gemini_utils import call_gemini_pro, get_language_instruction
-from telegram_worker import send_telegram_message
+from telegram_worker import send_telegram_message, resolve_symbol
 
 
 def run_single_analysis(symbol: str, lang: str) -> dict:
@@ -139,10 +139,18 @@ def main():
         lang = "de"
 
     # Parse symbols (space or comma separated)
-    symbols = [s.strip().upper() for s in symbols_raw.replace(",", " ").split() if s.strip()]
+    raw_symbols = [s.strip() for s in symbols_raw.replace(",", " ").split() if s.strip()]
 
-    print(f"Comparison request: {symbols}")
+    print(f"Comparison request: {raw_symbols}")
     print(f"Language: {lang}")
+
+    # Resolve company names to symbols
+    symbols = []
+    symbol_names = {}
+    for raw in raw_symbols:
+        symbol, name = resolve_symbol(raw)
+        symbols.append(symbol)
+        symbol_names[symbol] = name
 
     if len(symbols) < 2:
         msg = "❌ Mindestens 2 Assets für Vergleich erforderlich.\nBeispiel: /vs GOLD SILVER" if lang == "de" else "❌ At least 2 assets required for comparison.\nExample: /vs GOLD SILVER"

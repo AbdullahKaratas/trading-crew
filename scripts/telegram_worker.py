@@ -88,6 +88,47 @@ def is_commodity(symbol: str) -> bool:
     return symbol.lower() in COMMODITIES
 
 
+def resolve_symbol(user_input: str) -> tuple[str, str]:
+    """
+    Resolve company name or ticker to valid stock symbol using Gemini + Search.
+
+    Args:
+        user_input: Company name (e.g., "E.ON", "Apple") or ticker (e.g., "AAPL")
+
+    Returns:
+        Tuple of (symbol, display_name) - e.g., ("EOAN.DE", "E.ON SE")
+    """
+    # Skip resolution for commodities
+    if is_commodity(user_input):
+        return user_input.upper(), user_input.capitalize()
+
+    prompt = f"""Search for the stock ticker symbol for "{user_input}".
+
+Return ONLY a JSON object (no markdown, no explanation):
+{{"symbol": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ"}}
+
+Rules:
+- For US stocks: just the symbol (AAPL, MSFT, TSLA)
+- For German stocks: add .DE suffix (EOAN.DE, BMW.DE, SAP.DE)
+- For UK stocks: add .L suffix (SHEL.L, BP.L)
+- For other European: .PA (Paris), .AS (Amsterdam), .MI (Milan), .SW (Swiss)
+- Return the most liquid/main listing
+- If input is already a valid ticker, return it with the company name"""
+
+    response = call_gemini_flash(prompt, use_search=True)
+    data = parse_json_response(response)
+
+    if data and data.get("symbol"):
+        symbol = data["symbol"].upper()
+        name = data.get("name", user_input)
+        print(f"  Resolved '{user_input}' → {symbol} ({name})")
+        return symbol, name
+
+    # Fallback: return as-is (uppercase)
+    print(f"  Could not resolve '{user_input}', using as-is")
+    return user_input.upper(), user_input
+
+
 def get_commodity_spot_price(commodity: str) -> dict:
     """Get current spot price for a commodity using Gemini + Google Search.
 
@@ -429,7 +470,7 @@ def main():
     """Main entry point."""
     # Get environment variables
     command = os.environ.get("COMMAND", "analyze")
-    symbol = os.environ.get("SYMBOL", "").upper()
+    user_input = os.environ.get("SYMBOL", "").strip()  # Keep original for resolution
     direction = os.environ.get("DIRECTION", "").lower() or None  # "long", "short", or None
     budget_str = os.environ.get("BUDGET", "")
     chat_id = os.environ.get("CHAT_ID")
@@ -444,7 +485,7 @@ def main():
     if direction and direction not in ["long", "short"]:
         direction = None
 
-    if not symbol:
+    if not user_input:
         msg = "❌ No symbol provided." if lang == "en" else "❌ Kein Symbol angegeben."
         send_telegram_message(chat_id, msg)
         return 1
@@ -453,10 +494,14 @@ def main():
         print("Error: No CHAT_ID provided")
         return 1
 
+    # Resolve company name to symbol (e.g., "E.ON" → "EOAN.DE", "Apple" → "AAPL")
+    print(f"Resolving symbol for: {user_input}")
+    symbol, display_name = resolve_symbol(user_input)
+
     budget = float(budget_str) if budget_str and budget_str != "null" else None
 
     direction_str = f" ({direction.upper()})" if direction else ""
-    print(f"Running analysis for {symbol}{direction_str} (budget: {budget}, lang: {lang})")
+    print(f"Running analysis for {symbol} ({display_name}){direction_str} (budget: {budget}, lang: {lang})")
 
     try:
         # Get stock data
