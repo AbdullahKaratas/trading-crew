@@ -15,16 +15,26 @@ The system uses a sophisticated multi-agent debate architecture:
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
+│                   CHART GENERATION                          │
+│              4-Panel Technical Chart (PNG)                  │
+│    Price+SMA • RSI • Volume • CMF/OBV                       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+            ┌─────────────────┴─────────────────┐
+            │   Chart sent to ALL 7 AI Agents   │
+            └─────────────────┬─────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
 │                  INVESTMENT DEBATE                          │
 │  ┌─────────────┐    2 Rounds    ┌─────────────┐            │
 │  │    BULL     │◄──────────────►│    BEAR     │            │
-│  │  Researcher │                │  Researcher │            │
+│  │  + Chart 📊 │                │  + Chart 📊 │            │
 │  └─────────────┘                └─────────────┘            │
 │                        │                                    │
 │                        ▼                                    │
 │              ┌─────────────────┐                           │
 │              │ INVESTMENT JUDGE│  → LONG / SHORT / HOLD    │
-│              │  (Gemini Pro)   │                           │
+│              │   + Chart 📊    │                           │
 │              └─────────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -33,20 +43,20 @@ The system uses a sophisticated multi-agent debate architecture:
 │                     RISK DEBATE                             │
 │  ┌───────┐      ┌─────────┐      ┌─────────┐              │
 │  │ RISKY │      │ NEUTRAL │      │  SAFE   │              │
-│  │Analyst│      │ Analyst │      │ Analyst │              │
+│  │  📊   │      │   📊    │      │   📊    │              │
 │  └───────┘      └─────────┘      └─────────┘              │
 │                        │                                    │
 │                        ▼                                    │
 │              ┌─────────────────┐                           │
 │              │   RISK JUDGE    │  → Knockout Strategies    │
-│              │  (Gemini Pro)   │  → Entry/Exit Levels      │
+│              │   + Chart 📊    │  → Entry/Exit Levels      │
 │              └─────────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    TELEGRAM BOT                             │
-│           Actionable alerts to your phone                   │
+│         📊 Chart Image + 📝 Analysis Text                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -54,11 +64,25 @@ The system uses a sophisticated multi-agent debate architecture:
 
 - **Universal Asset Support** - Stocks, Commodities (Gold, Silver), ETFs, Crypto
 - **Real-Time Data** - Powered by Gemini + Google Search (no API limits)
-- **Multi-Agent Debates** - Bull vs Bear + Risk assessment
+- **Chart Vision AI** - Gemini "sees" the chart and recognizes patterns (Head & Shoulders, Golden Cross, etc.)
+- **Multi-Agent Debates** - Bull vs Bear + Risk assessment (all agents receive the chart)
 - **Knockout Strategies** - Entry zones, stop-loss, take-profit levels
-- **Telegram Bot** - On-demand analysis via commands
+- **Telegram Bot** - Chart image + analysis text sent to your phone
 - **Scheduled Analysis** - Daily watchlist analysis via GitHub Actions
 - **Multi-Language** - English and German support
+
+### Chart Vision
+
+Every analysis generates a 4-panel technical chart that all AI agents can "see":
+
+| Panel | Indicators | What AI Looks For |
+|-------|------------|-------------------|
+| **Price** | Candlesticks, SMA 50, SMA 200 | Golden/Death Cross, Trends, Patterns |
+| **RSI** | RSI(14), Overbought/Oversold lines | Divergences, Extremes |
+| **Volume** | Colored bars (green=bullish) | Confirmation, Climax |
+| **Money Flow** | CMF(20), OBV | Accumulation/Distribution |
+
+The chart is sent to Telegram alongside the analysis text.
 
 ## Quick Start
 
@@ -178,7 +202,8 @@ watchlist:
 ```
 trading-crew/
 ├── scripts/
-│   ├── gemini_utils.py       # Gemini API utilities + Pydantic schemas
+│   ├── gemini_utils.py       # Gemini API utilities (Flash, Pro, Vision)
+│   ├── chart_vision.py       # 4-panel chart generator (Plotly)
 │   ├── universal_agents.py   # Multi-agent debate system
 │   ├── telegram_worker.py    # /analyze command handler
 │   └── comparison_worker.py  # /vs command handler
