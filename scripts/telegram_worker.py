@@ -130,26 +130,12 @@ def resolve_symbol(user_input: str) -> tuple[str, str]:
     Returns:
         Tuple of (symbol, display_name) - e.g., ("EOAN.DE", "E.ON SE") or ("SI=F", "Silver Futures")
     """
-    prompt = f"""Search for the yfinance ticker symbol for "{user_input}".
+    prompt = f"""Find the yfinance (Yahoo Finance) ticker symbol for "{user_input}".
 
-Return ONLY a JSON object (no markdown, no explanation):
-{{"symbol": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ"}}
+Return ONLY JSON (no markdown):
+{{"symbol": "<yfinance symbol>", "name": "<full name>"}}
 
-Rules:
-- For US stocks: just the symbol (AAPL, MSFT, TSLA)
-- For German stocks: add .DE suffix (EOAN.DE, BMW.DE, SAP.DE)
-- For UK stocks: add .L suffix (SHEL.L, BP.L)
-- For other European: .PA (Paris), .AS (Amsterdam), .MI (Milan), .SW (Swiss)
-- For commodities/futures use CME symbols with =F suffix:
-  - Gold → GC=F
-  - Silver → SI=F
-  - Crude Oil → CL=F
-  - Natural Gas → NG=F
-  - Copper → HG=F
-  - Platinum → PL=F
-  - Palladium → PA=F
-- Return the most liquid/main listing
-- If input is already a valid ticker, return it with the name"""
+Use the exact symbol format that works with the yfinance Python library."""
 
     response = call_gemini_flash(prompt, use_search=True)
     data = parse_json_response(response)
