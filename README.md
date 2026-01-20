@@ -113,10 +113,13 @@ python telegram_worker.py
 | Command | Description |
 |---------|-------------|
 | `/analyze AAPL` | Full analysis for Apple stock |
+| `/analyze Apple` | Works with company names too! |
 | `/analyze AAPL long` | Force LONG direction (knockout below price) |
 | `/analyze AAPL short` | Force SHORT direction (knockout above price) |
 | `/analyze GOLD` | Commodity analysis |
 | `/analyze AAPL de` | Analysis in German |
+| `/vs GOLD SILVER` | Compare 2-4 assets side-by-side |
+| `/vs AAPL MSFT GOOGL` | Compare multiple stocks |
 | `/help` | Show all commands |
 
 ### Example Output
@@ -175,10 +178,10 @@ watchlist:
 ```
 trading-crew/
 ├── scripts/
-│   ├── gemini_utils.py       # Centralized Gemini API utilities
+│   ├── gemini_utils.py       # Gemini API utilities + Pydantic schemas
 │   ├── universal_agents.py   # Multi-agent debate system
-│   ├── commodity_agents.py   # Commodity-specific analysis
-│   └── telegram_worker.py    # Telegram bot
+│   ├── telegram_worker.py    # /analyze command handler
+│   └── comparison_worker.py  # /vs command handler
 ├── tests/
 │   ├── TEST_PROTOCOL.md      # Manual test checklist
 │   ├── test_gemini_utils.py  # Unit tests
