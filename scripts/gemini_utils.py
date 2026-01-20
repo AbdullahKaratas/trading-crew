@@ -6,11 +6,12 @@ This module consolidates common patterns used across commodity_agents.py,
 universal_agents.py, and telegram_worker.py to reduce code duplication.
 """
 
+import io
 import json
 import os
 import re
 import time
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from google import genai
 from google.genai import types
@@ -237,6 +238,65 @@ def call_gemini_pro(prompt: str, use_search: bool = False, max_retries: int = 3)
         use_search=use_search,
         max_retries=max_retries,
     )
+
+
+def call_gemini_vision(
+    prompt: str,
+    image: Union[io.BytesIO, bytes],
+    model: str = "gemini-3-flash-preview",
+    max_retries: int = 3,
+    retry_delay: int = 5,
+) -> str:
+    """
+    Call Gemini Vision API with an image for analysis.
+
+    Args:
+        prompt: Text prompt describing what to analyze
+        image: Image data as BytesIO or bytes (PNG format)
+        model: Gemini model name (default: gemini-3-flash-preview)
+        max_retries: Maximum number of retry attempts
+        retry_delay: Base delay between retries
+
+    Returns:
+        Response text or empty string if all retries fail
+    """
+    client = get_gemini_client()
+
+    # Convert BytesIO to bytes if needed
+    if isinstance(image, io.BytesIO):
+        image.seek(0)
+        img_data = image.read()
+    else:
+        img_data = image
+
+    # Create image part for Gemini
+    image_part = types.Part.from_bytes(data=img_data, mime_type='image/png')
+    contents = [prompt, image_part]
+
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=contents,
+            )
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            error_str = str(e)
+            # Handle rate limiting with exponential backoff
+            if "429" in error_str and attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            # Re-raise non-rate-limit errors on last attempt
+            if attempt == max_retries - 1:
+                print(f"  [Vision] Error after {max_retries} attempts: {error_str[:100]}")
+                raise
+
+        # Wait before retry on empty response
+        if attempt < max_retries - 1:
+            time.sleep(2)
+
+    return ""
 
 
 def call_gemini_json(

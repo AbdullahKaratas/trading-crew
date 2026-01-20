@@ -13,19 +13,22 @@ Architecture:
 5. Risk Judge - Structured JSON output
 """
 
+import io
 import json
 from datetime import date
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 from gemini_utils import (
     call_gemini_flash,
     call_gemini_pro,
+    call_gemini_vision,
     call_gemini_json,
     extract_price_from_text,
     get_language_instruction,
     parse_json_response,
     TradeDecisionSchema,
 )
+from chart_vision import create_chart_for_analysis
 
 
 class UniversalDebateState(TypedDict):
@@ -37,6 +40,9 @@ class UniversalDebateState(TypedDict):
     price_source: str
     today: str
     lang: str
+
+    # Chart for vision analysis (PNG as BytesIO, None if unavailable)
+    chart_image: Optional[io.BytesIO]
 
     # Data from gatherer
     price_data: str
@@ -202,12 +208,25 @@ def bull_analyst(state: UniversalDebateState) -> str:
     if bear_args:
         counter_section = f"\n## Bear's Arguments to Counter:\n{bear_args}\n\nDirectly address and counter each point."
 
+    chart_instruction = ""
+    if state.get("chart_image"):
+        chart_instruction = """
+## Chart Analysis
+Analyze the attached chart image showing:
+- Price action with SMA 50 (orange) and SMA 200 (purple)
+- RSI indicator (yellow) with overbought (70) and oversold (30) lines
+- Volume bars (green=bullish, red=bearish)
+- CMF (cyan) and OBV (magenta) for money flow
+
+Look for bullish patterns: Golden Cross, higher lows, bullish divergence, etc.
+"""
+
     prompt = f"""You are a BULLISH Analyst advocating for a LONG position in {state['symbol']}.
 
 ## Current Data (as of {state['today']})
 - **Asset**: {state['asset_name']} ({state['asset_type']})
 - **Price**: ${state['current_price']:.2f}
-
+{chart_instruction}
 ## Technical Analysis
 {state['technical_data']}
 
@@ -220,13 +239,20 @@ def bull_analyst(state: UniversalDebateState) -> str:
 
 ## Your Task
 Build a strong case for why {state['symbol']} will RISE. Focus on:
-1. Bullish technical signals
+1. Bullish technical signals (reference the chart if available)
 2. Positive catalysts
 3. Strong fundamentals or market tailwinds
 4. Why bears are wrong
 
 Be specific with price targets. {lang_instruction}
 Keep response under 500 words."""
+
+    # Try vision API if chart available, fallback to text
+    if state.get("chart_image"):
+        try:
+            return call_gemini_vision(prompt, state["chart_image"])
+        except Exception:
+            pass  # Fallback to text-only
 
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
@@ -240,12 +266,25 @@ def bear_analyst(state: UniversalDebateState) -> str:
     if bull_args:
         counter_section = f"\n## Bull's Arguments to Counter:\n{bull_args}\n\nDirectly address and counter each point."
 
+    chart_instruction = ""
+    if state.get("chart_image"):
+        chart_instruction = """
+## Chart Analysis
+Analyze the attached chart image showing:
+- Price action with SMA 50 (orange) and SMA 200 (purple)
+- RSI indicator (yellow) with overbought (70) and oversold (30) lines
+- Volume bars (green=bullish, red=bearish)
+- CMF (cyan) and OBV (magenta) for money flow
+
+Look for bearish patterns: Death Cross, lower highs, bearish divergence, etc.
+"""
+
     prompt = f"""You are a BEARISH Analyst arguing AGAINST a long position in {state['symbol']}.
 
 ## Current Data (as of {state['today']})
 - **Asset**: {state['asset_name']} ({state['asset_type']})
 - **Price**: ${state['current_price']:.2f}
-
+{chart_instruction}
 ## Technical Analysis
 {state['technical_data']}
 
@@ -258,13 +297,20 @@ def bear_analyst(state: UniversalDebateState) -> str:
 
 ## Your Task
 Build a strong case for why {state['symbol']} will FALL. Focus on:
-1. Bearish technical signals
+1. Bearish technical signals (reference the chart if available)
 2. Negative catalysts or risks
 3. Weak fundamentals or headwinds
 4. Why bulls are wrong
 
 Be specific with downside targets. {lang_instruction}
 Keep response under 500 words."""
+
+    # Try vision API if chart available, fallback to text
+    if state.get("chart_image"):
+        try:
+            return call_gemini_vision(prompt, state["chart_image"])
+        except Exception:
+            pass  # Fallback to text-only
 
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
@@ -273,22 +319,31 @@ def investment_judge(state: UniversalDebateState) -> str:
     """Investment Judge decides LONG/SHORT/HOLD."""
     lang_instruction = get_language_instruction(state["lang"])
 
+    chart_instruction = ""
+    if state.get("chart_image"):
+        chart_instruction = """
+## Chart Analysis
+Review the attached chart to visually confirm the technical patterns discussed.
+The chart shows: Price+SMA, RSI, Volume, and CMF/OBV indicators.
+"""
+
     prompt = f"""You are the INVESTMENT JUDGE for {state['symbol']} analysis.
 
 ## Current Price: ${state['current_price']:.2f}
 ## Date: {state['today']}
-
+{chart_instruction}
 Use Google Search to verify the latest news and current situation for {state['symbol']}.
 
 ## Full Debate History
 {state['investment_debate_history']}
 
 ## Your Task
-1. Verify current market conditions via Google Search
-2. Evaluate which side presented stronger evidence
-3. Identify the 2-3 most important factors
-4. Acknowledge main risks
-5. Make a decision: **LONG**, **SHORT**, or **HOLD**
+1. Review the chart (if available) to verify technical claims
+2. Verify current market conditions via Google Search
+3. Evaluate which side presented stronger evidence
+4. Identify the 2-3 most important factors
+5. Acknowledge main risks
+6. Make a decision: **LONG**, **SHORT**, or **HOLD**
 
 End with exactly one of:
 - RECOMMENDATION: **LONG**
@@ -297,6 +352,13 @@ End with exactly one of:
 
 {lang_instruction}
 Keep response under 400 words."""
+
+    # Try vision API if chart available, fallback to text
+    if state.get("chart_image"):
+        try:
+            return call_gemini_vision(prompt, state["chart_image"], model="gemini-3-pro-preview")
+        except Exception:
+            pass  # Fallback to text-only
 
     return call_gemini_pro(prompt, use_search=True)
 
@@ -309,11 +371,15 @@ def risky_analyst(state: UniversalDebateState) -> str:
     """Risky analyst advocates for aggressive strategies."""
     lang_instruction = get_language_instruction(state["lang"])
 
+    chart_instruction = ""
+    if state.get("chart_image"):
+        chart_instruction = "\nUse the attached chart to identify tight support/resistance for aggressive levels."
+
     prompt = f"""You are the AGGRESSIVE Risk Analyst for {state['symbol']}.
 
 ## Investment Decision: **{state['investment_decision']}**
 ## Current Price: ${state['current_price']:.2f}
-
+{chart_instruction}
 Advocate for HIGH-REWARD strategies:
 - Tight stop-losses (5-8% from price)
 - Maximize upside potential
@@ -322,6 +388,13 @@ Advocate for HIGH-REWARD strategies:
 Propose aggressive knockout levels. {lang_instruction}
 Keep response under 300 words."""
 
+    # Try vision API if chart available, fallback to text
+    if state.get("chart_image"):
+        try:
+            return call_gemini_vision(prompt, state["chart_image"])
+        except Exception:
+            pass  # Fallback to text-only
+
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
 
@@ -329,13 +402,17 @@ def safe_analyst(state: UniversalDebateState) -> str:
     """Safe analyst prioritizes capital preservation."""
     lang_instruction = get_language_instruction(state["lang"])
 
+    chart_instruction = ""
+    if state.get("chart_image"):
+        chart_instruction = "\nUse the attached chart to identify strong support zones for conservative levels."
+
     prompt = f"""You are the CONSERVATIVE Risk Analyst for {state['symbol']}.
 
 ## Investment Decision: **{state['investment_decision']}**
 ## Current Price: ${state['current_price']:.2f}
 ## Risky Analyst's Position:
 {state.get('risky_arguments', '')}
-
+{chart_instruction}
 Advocate for CAPITAL PRESERVATION:
 - Wide stop-losses (15-25% from price)
 - Why aggressive approach is dangerous
@@ -344,12 +421,23 @@ Advocate for CAPITAL PRESERVATION:
 Propose conservative knockout levels. {lang_instruction}
 Keep response under 300 words."""
 
+    # Try vision API if chart available, fallback to text
+    if state.get("chart_image"):
+        try:
+            return call_gemini_vision(prompt, state["chart_image"])
+        except Exception:
+            pass  # Fallback to text-only
+
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
 
 def neutral_analyst(state: UniversalDebateState) -> str:
     """Neutral analyst provides balanced perspective."""
     lang_instruction = get_language_instruction(state["lang"])
+
+    chart_instruction = ""
+    if state.get("chart_image"):
+        chart_instruction = "\nUse the attached chart to find balanced support/resistance levels."
 
     prompt = f"""You are the NEUTRAL Risk Analyst for {state['symbol']}.
 
@@ -361,7 +449,7 @@ def neutral_analyst(state: UniversalDebateState) -> str:
 
 ## Safe Position:
 {state.get('safe_arguments', '')}
-
+{chart_instruction}
 Provide BALANCE:
 - Where is Risky too aggressive?
 - Where is Safe too cautious?
@@ -369,6 +457,13 @@ Provide BALANCE:
 
 Propose moderate knockout levels. {lang_instruction}
 Keep response under 300 words."""
+
+    # Try vision API if chart available, fallback to text
+    if state.get("chart_image"):
+        try:
+            return call_gemini_vision(prompt, state["chart_image"])
+        except Exception:
+            pass  # Fallback to text-only
 
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
@@ -384,13 +479,34 @@ def risk_judge(state: UniversalDebateState) -> dict:
     eur_rate = 0.95
     price_eur = state['current_price'] * eur_rate
 
+    # Get chart analysis if chart is available (adds visual pattern recognition)
+    chart_analysis = ""
+    if state.get("chart_image"):
+        try:
+            chart_prompt = f"""Analyze this {state['symbol']} chart for final trading decision.
+
+Identify and report:
+1. Key chart patterns (Head & Shoulders, Double Top/Bottom, Triangles, etc.)
+2. SMA 50/200 relationship (Golden Cross, Death Cross, trend)
+3. RSI status (overbought >70, oversold <30, divergences)
+4. Volume confirmation (increasing/decreasing on moves)
+5. CMF/OBV money flow direction
+6. Critical support and resistance levels visible on chart
+
+Keep response under 200 words, focus on actionable observations."""
+            chart_analysis = call_gemini_vision(chart_prompt, state["chart_image"])
+            if chart_analysis:
+                chart_analysis = f"\n## Visual Chart Analysis:\n{chart_analysis}\n"
+        except Exception:
+            pass  # Continue without chart analysis
+
     prompt = f"""You are the FINAL RISK JUDGE for {state['symbol']}.
 
 ## TODAY'S DATE: {state['today']}
 ## AUTHORITATIVE PRICE: ${state['current_price']:.2f} USD / {price_eur:.2f} EUR
 
 Use Google Search to verify latest news and price for {state['symbol']} today.
-
+{chart_analysis}
 ## Investment Decision: {state['investment_decision']}
 
 ## Investment Debate (Why this decision was made):
@@ -510,6 +626,19 @@ def run_universal_analysis(symbol: str, trade_date: str = None, lang: str = "en"
     print(f"  - Asset: {gathered_data['asset_name']} ({gathered_data['asset_type']})")
     print(f"  - Price: ${gathered_data['current_price']:.2f} (source: {gathered_data['price_source']})")
 
+    # Generate chart for vision analysis (stocks only, commodities fall back to text)
+    chart_image = None
+    if gathered_data['asset_type'] in ('stock', 'etf'):
+        print("\n[1.5/5] Generating chart for vision analysis...")
+        try:
+            chart_image = create_chart_for_analysis(symbol)
+            if chart_image:
+                print(f"  - Chart generated successfully")
+            else:
+                print(f"  - Chart generation failed, using text-only mode")
+        except Exception as e:
+            print(f"  - Chart error: {e}, using text-only mode")
+
     # Initialize state
     state: UniversalDebateState = {
         "symbol": symbol.upper(),
@@ -519,6 +648,7 @@ def run_universal_analysis(symbol: str, trade_date: str = None, lang: str = "en"
         "price_source": gathered_data["price_source"],
         "today": trade_date,
         "lang": lang,
+        "chart_image": chart_image,
         "price_data": gathered_data["price_data"],
         "technical_data": gathered_data["technical_data"],
         "news_data": gathered_data["news_data"],
