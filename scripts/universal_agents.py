@@ -626,18 +626,17 @@ def run_universal_analysis(symbol: str, trade_date: str = None, lang: str = "en"
     print(f"  - Asset: {gathered_data['asset_name']} ({gathered_data['asset_type']})")
     print(f"  - Price: ${gathered_data['current_price']:.2f} (source: {gathered_data['price_source']})")
 
-    # Generate chart for vision analysis (stocks only, commodities fall back to text)
+    # Generate chart for vision analysis (all asset types - commodities use futures symbols)
     chart_image = None
-    if gathered_data['asset_type'] in ('stock', 'etf'):
-        print("\n[1.5/5] Generating chart for vision analysis...")
-        try:
-            chart_image = create_chart_for_analysis(symbol)
-            if chart_image:
-                print(f"  - Chart generated successfully")
-            else:
-                print(f"  - Chart generation failed, using text-only mode")
-        except Exception as e:
-            print(f"  - Chart error: {e}, using text-only mode")
+    print("\n[1.5/5] Generating chart for vision analysis...")
+    try:
+        chart_image = create_chart_for_analysis(symbol)
+        if chart_image:
+            print(f"  - Chart generated successfully")
+        else:
+            print(f"  - Chart generation failed, using text-only mode")
+    except Exception as e:
+        print(f"  - Chart error: {e}, using text-only mode")
 
     # Initialize state
     state: UniversalDebateState = {
