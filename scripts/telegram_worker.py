@@ -122,19 +122,15 @@ def is_commodity(symbol: str) -> bool:
 
 def resolve_symbol(user_input: str) -> tuple[str, str]:
     """
-    Resolve company name or ticker to valid stock symbol using Gemini + Search.
+    Resolve company name, ticker, or commodity to valid yfinance symbol using Gemini + Search.
 
     Args:
-        user_input: Company name (e.g., "E.ON", "Apple") or ticker (e.g., "AAPL")
+        user_input: Company name (e.g., "E.ON"), ticker (e.g., "AAPL"), or commodity (e.g., "Silver")
 
     Returns:
-        Tuple of (symbol, display_name) - e.g., ("EOAN.DE", "E.ON SE")
+        Tuple of (symbol, display_name) - e.g., ("EOAN.DE", "E.ON SE") or ("SI=F", "Silver Futures")
     """
-    # Skip resolution for commodities
-    if is_commodity(user_input):
-        return user_input.upper(), user_input.capitalize()
-
-    prompt = f"""Search for the stock ticker symbol for "{user_input}".
+    prompt = f"""Search for the yfinance ticker symbol for "{user_input}".
 
 Return ONLY a JSON object (no markdown, no explanation):
 {{"symbol": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ"}}
@@ -144,8 +140,16 @@ Rules:
 - For German stocks: add .DE suffix (EOAN.DE, BMW.DE, SAP.DE)
 - For UK stocks: add .L suffix (SHEL.L, BP.L)
 - For other European: .PA (Paris), .AS (Amsterdam), .MI (Milan), .SW (Swiss)
+- For commodities/futures use CME symbols with =F suffix:
+  - Gold → GC=F
+  - Silver → SI=F
+  - Crude Oil → CL=F
+  - Natural Gas → NG=F
+  - Copper → HG=F
+  - Platinum → PL=F
+  - Palladium → PA=F
 - Return the most liquid/main listing
-- If input is already a valid ticker, return it with the company name"""
+- If input is already a valid ticker, return it with the name"""
 
     response = call_gemini_flash(prompt, use_search=True)
     data = parse_json_response(response)

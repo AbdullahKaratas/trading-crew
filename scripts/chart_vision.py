@@ -16,19 +16,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
-# Commodity symbol mapping (name → yfinance futures symbol)
-COMMODITY_SYMBOLS = {
-    "silver": "SI=F",
-    "gold": "GC=F",
-    "oil": "CL=F",
-    "crude": "CL=F",
-    "copper": "HG=F",
-    "platinum": "PL=F",
-    "palladium": "PA=F",
-    "natural gas": "NG=F",
-    "gas": "NG=F",
-}
-
 # AI-optimized colors for pattern recognition
 AI_COLORS = {
     'background': '#000000',
@@ -56,7 +43,7 @@ def fetch_ohlcv_for_chart(symbol: str, period: str = "1y") -> Optional[np.ndarra
     Fetch OHLCV data from yfinance for chart generation.
 
     Args:
-        symbol: Stock ticker (e.g., "AAPL", "MSFT") or commodity name (e.g., "Silver", "Gold")
+        symbol: yfinance symbol (e.g., "AAPL", "SI=F") - already resolved by Gemini
         period: Time period (e.g., "1y", "6mo", "3mo")
 
     Returns:
@@ -66,12 +53,7 @@ def fetch_ohlcv_for_chart(symbol: str, period: str = "1y") -> Optional[np.ndarra
     try:
         import yfinance as yf
 
-        # Check if it's a commodity name → map to futures symbol
-        yf_symbol = COMMODITY_SYMBOLS.get(symbol.lower(), symbol)
-        if yf_symbol != symbol:
-            print(f"  [Chart] Mapped {symbol} → {yf_symbol}")
-
-        ticker = yf.Ticker(yf_symbol)
+        ticker = yf.Ticker(symbol)
         df = ticker.history(period=period, interval="1d")
 
         if df.empty:
