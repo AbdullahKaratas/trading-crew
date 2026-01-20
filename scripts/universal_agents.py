@@ -278,14 +278,17 @@ def investment_judge(state: UniversalDebateState) -> str:
 ## Current Price: ${state['current_price']:.2f}
 ## Date: {state['today']}
 
+Use Google Search to verify the latest news and current situation for {state['symbol']}.
+
 ## Full Debate History
 {state['investment_debate_history']}
 
 ## Your Task
-1. Evaluate which side presented stronger evidence
-2. Identify the 2-3 most important factors
-3. Acknowledge main risks
-4. Make a decision: **LONG**, **SHORT**, or **HOLD**
+1. Verify current market conditions via Google Search
+2. Evaluate which side presented stronger evidence
+3. Identify the 2-3 most important factors
+4. Acknowledge main risks
+5. Make a decision: **LONG**, **SHORT**, or **HOLD**
 
 End with exactly one of:
 - RECOMMENDATION: **LONG**
@@ -295,7 +298,7 @@ End with exactly one of:
 {lang_instruction}
 Keep response under 400 words."""
 
-    return call_gemini_pro(prompt, use_search=False)
+    return call_gemini_pro(prompt, use_search=True)
 
 
 # =============================================================================
@@ -390,10 +393,13 @@ Use Google Search to verify latest news and price for {state['symbol']} today.
 
 ## Investment Decision: {state['investment_decision']}
 
+## Investment Debate (Why this decision was made):
+{state['investment_debate_history']}
+
 ## Risk Debate Summary:
-### Risky: {state['risky_arguments'][:500]}
-### Safe: {state['safe_arguments'][:500]}
-### Neutral: {state['neutral_arguments'][:500]}
+### Risky Analyst: {state['risky_arguments']}
+### Safe Analyst: {state['safe_arguments']}
+### Neutral Analyst: {state['neutral_arguments']}
 
 ## Output Requirements
 Return ONLY valid JSON (no markdown):
