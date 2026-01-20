@@ -10,10 +10,56 @@ import json
 import os
 import re
 import time
-from typing import Optional
+from typing import Optional, List
 
 from google import genai
 from google.genai import types
+from pydantic import BaseModel, Field
+
+
+# =============================================================================
+# PYDANTIC SCHEMAS FOR STRUCTURED OUTPUT
+# =============================================================================
+
+class SupportResistanceZone(BaseModel):
+    """A price zone with level and description."""
+    level_usd: float = Field(description="Price level in USD")
+    description: str = Field(description="Reason for this zone")
+
+
+class KnockoutStrategy(BaseModel):
+    """Knockout certificate strategy parameters."""
+    ko_level_usd: float = Field(description="Knockout level in USD")
+    distance_pct: float = Field(description="Distance from current price in percent")
+    risk: str = Field(description="Risk level: low, medium, or high")
+
+
+class Strategies(BaseModel):
+    """Three risk-based knockout strategies."""
+    conservative: KnockoutStrategy = Field(description="Conservative strategy with 15-25% distance")
+    moderate: KnockoutStrategy = Field(description="Moderate strategy with 10-15% distance")
+    aggressive: KnockoutStrategy = Field(description="Aggressive strategy with 5-10% distance")
+
+
+class Timeframes(BaseModel):
+    """Trading signals for different time horizons."""
+    short_term: str = Field(description="Signal for days to weeks: LONG, SHORT, or HOLD")
+    medium_term: str = Field(description="Signal for weeks to months: LONG, SHORT, or HOLD")
+    long_term: str = Field(description="Signal for months to years: LONG, SHORT, or HOLD")
+
+
+class TradeDecisionSchema(BaseModel):
+    """Complete trade decision output schema."""
+    signal: str = Field(description="Main signal: LONG, SHORT, HOLD, or IGNORE")
+    confidence: float = Field(description="Confidence level from 0.0 to 1.0")
+    unable_to_assess: bool = Field(default=False, description="True if assessment not possible")
+    price_usd: float = Field(description="Current price in USD")
+    price_eur: float = Field(description="Current price in EUR")
+    strategies: Strategies = Field(description="Three knockout strategies")
+    support_zones: List[SupportResistanceZone] = Field(description="Key support price zones")
+    resistance_zones: List[SupportResistanceZone] = Field(description="Key resistance price zones")
+    detailed_analysis: str = Field(description="300-500 word analysis with reasoning")
+    timeframes: Timeframes = Field(description="Signals for different time horizons")
 
 
 def get_gemini_client() -> genai.Client:
@@ -221,45 +267,82 @@ def call_gemini_json(
     model: str = "gemini-3-pro-preview",
     use_search: bool = False,
     max_retries: int = 3,
+    schema: Optional[type[BaseModel]] = None,
 ) -> Optional[dict]:
     """
-    Call Gemini and ensure valid JSON response. Retries if LLM returns text instead of JSON.
+    Call Gemini with structured JSON output using Pydantic schema.
+
+    Uses Gemini's native structured output feature (response_mime_type + response_schema)
+    to guarantee valid JSON that matches the schema. Retries only for API errors.
 
     Args:
         prompt: The prompt to send
         model: Gemini model to use
-        use_search: Whether to enable Google Search
-        max_retries: Max attempts to get valid JSON
+        use_search: Whether to enable Google Search grounding
+        max_retries: Max attempts for API errors (network, rate limit)
+        schema: Pydantic model class for structured output (e.g., TradeDecisionSchema)
 
     Returns:
-        Parsed dict or None if all retries fail
+        Parsed dict matching the schema, or None if all retries fail
     """
-    last_response = ""
+    client = get_gemini_client()
 
+    # Build config with structured output
+    config_dict = {}
+
+    if schema:
+        # Use Gemini's native structured output
+        config_dict["response_mime_type"] = "application/json"
+        config_dict["response_schema"] = schema
+
+    if use_search:
+        config_dict["tools"] = [types.Tool(google_search=types.GoogleSearch())]
+
+    config = types.GenerateContentConfig(**config_dict) if config_dict else None
+
+    last_error = None
     for attempt in range(max_retries):
-        response = call_gemini(
-            prompt=prompt,
-            model=model,
-            use_search=use_search,
-            max_retries=1,  # API retries handled separately
-        )
-        last_response = response
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=config
+            )
 
-        result = parse_json_response(response)
-        if result:
-            return result
+            if response and response.text:
+                # With structured output, response.text is guaranteed valid JSON
+                if schema:
+                    try:
+                        return json.loads(response.text)
+                    except json.JSONDecodeError as e:
+                        print(f"  Unexpected JSON error (attempt {attempt + 1}): {e}")
+                        last_error = e
+                else:
+                    # Fallback: parse without schema guarantee
+                    result = parse_json_response(response.text)
+                    if result:
+                        return result
+                    print(f"  JSON parse failed (attempt {attempt + 1}/{max_retries})")
 
-        # Retry with stronger JSON instruction
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+
+            # Handle rate limiting with exponential backoff
+            if "429" in error_str:
+                wait_time = 5 * (attempt + 1)
+                print(f"  Rate limited, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+                continue
+
+            # Log other errors
+            print(f"  API error (attempt {attempt + 1}/{max_retries}): {error_str[:100]}")
+
+        # Wait before retry
         if attempt < max_retries - 1:
-            print(f"  JSON parse failed (attempt {attempt + 1}/{max_retries}), retrying...")
-            prompt = f"""IMPORTANT: Your previous response was not valid JSON.
-Return ONLY a valid JSON object, no markdown, no explanation, no text before or after.
-
-{prompt}"""
             time.sleep(2)
 
-    print(f"  All {max_retries} attempts failed to get valid JSON")
-    print(f"  Last response: {last_response[:200]}...")
+    print(f"  All {max_retries} attempts failed. Last error: {last_error}")
     return None
 
 

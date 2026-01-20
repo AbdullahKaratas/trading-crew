@@ -25,6 +25,7 @@ from gemini_utils import (
     get_language_instruction,
     parse_json_response,
     strip_markdown_code_block,
+    TradeDecisionSchema,
 )
 
 
@@ -461,8 +462,15 @@ The main "signal" should match your PRIMARY recommendation.
 For LONG: KO levels BELOW current price
 For SHORT: KO levels ABOVE current price"""
 
-    # Use call_gemini_json with automatic retry for invalid JSON
-    result = call_gemini_json(prompt, model="gemini-3-pro-preview", use_search=True, max_retries=3)
+    # Use call_gemini_json with structured output schema
+    # The schema guarantees valid JSON format - retries only for API errors
+    result = call_gemini_json(
+        prompt,
+        model="gemini-3-pro-preview",
+        use_search=True,
+        max_retries=3,
+        schema=TradeDecisionSchema,
+    )
 
     if result:
         return result
