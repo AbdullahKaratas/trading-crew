@@ -24,33 +24,8 @@ from gemini_utils import (
     extract_price_from_text,
     get_language_instruction,
     parse_json_response,
-    strip_markdown_code_block,
     TradeDecisionSchema,
 )
-
-
-# Same JSON schema as TradingAgents
-TRADE_DECISION_SCHEMA = {
-    "signal": "LONG | SHORT | HOLD | IGNORE",
-    "confidence": 0.75,
-    "unable_to_assess": False,
-    "price_usd": 0.0,
-    "price_eur": 0.0,
-    "strategies": {
-        "conservative": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "low"},
-        "moderate": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "medium"},
-        "aggressive": {"ko_level_usd": 0.0, "distance_pct": 0.0, "risk": "high"},
-    },
-    "hold_alternative": None,
-    "support_zones": [{"level_usd": 0.0, "description": ""}],
-    "resistance_zones": [{"level_usd": 0.0, "description": ""}],
-    "detailed_analysis": "",
-    "timeframes": {
-        "short_term": "LONG | SHORT | HOLD",   # Days to weeks
-        "medium_term": "LONG | SHORT | HOLD",  # Weeks to months
-        "long_term": "LONG | SHORT | HOLD",    # Months to years
-    },
-}
 
 
 class UniversalDebateState(TypedDict):

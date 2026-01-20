@@ -128,35 +128,12 @@ def parse_json_response(response_text: str) -> Optional[dict]:
         return result
 
     # Try to find JSON object in text (handles text before/after JSON)
-    # Look for first { and last }
     start = text.find('{')
     end = text.rfind('}')
     if start != -1 and end != -1 and end > start:
         result = _try_parse(text[start:end + 1])
         if result:
             return result
-
-    # Try to extract from ```json ... ``` block if present
-    if '```json' in response_text:
-        try:
-            json_block = response_text.split('```json')[1].split('```')[0]
-            result = _try_parse(json_block.strip())
-            if result:
-                return result
-        except IndexError:
-            pass
-
-    # Try to extract from ``` ... ``` block
-    if '```' in response_text:
-        parts = response_text.split('```')
-        for part in parts[1::2]:  # Every second part (inside ```)
-            part = part.strip()
-            if part.startswith('json'):
-                part = part[4:].strip()
-            if part.startswith('{'):
-                result = _try_parse(part)
-                if result:
-                    return result
 
     return None
 
@@ -239,7 +216,7 @@ def call_gemini(
         if attempt < max_retries - 1:
             time.sleep(2)
 
-    return (response.text if response and response.text else "") or ""
+    return ""
 
 
 def call_gemini_flash(prompt: str, use_search: bool = True, max_retries: int = 3) -> str:

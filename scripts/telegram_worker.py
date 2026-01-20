@@ -275,9 +275,26 @@ Return ONLY a JSON object: {{"price_usd": 123.45, "name": "Company Name", "sourc
     }
 
 
+def _format_strategies(strategies: dict, risk_labels: dict, labels: dict) -> str:
+    """Format knockout strategies as text lines."""
+    lines = ""
+    strategy_configs = [
+        ("conservative", labels["conservative"], "🟢"),
+        ("moderate", labels["moderate"], "🟡"),
+        ("aggressive", labels["aggressive"], "🔴"),
+    ]
+    for strat_key, strat_name, strat_emoji in strategy_configs:
+        strat = strategies.get(strat_key, {})
+        ko = strat.get("ko_level_usd", 0)
+        dist = strat.get("distance_pct", 0)
+        risk = risk_labels.get(strat.get("risk", "medium"), labels["medium"])
+        lines += f"{strat_emoji} *{strat_name}:* KO ${ko:,.0f} ({dist:.1f}%) - {risk}\n"
+    return lines
+
+
 def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
     """Format analysis result for Telegram with new table-based format."""
-    trade = result.get("trade_decision") or {}  # Structured data from JSON
+    trade = result.get("trade_decision") or {}
     is_de = lang == "de"
 
     # Get all values from structured LLM response - NO FALLBACKS
@@ -358,33 +375,16 @@ _{stock_data['name']}_
 
     # Strategies section
     if strategies and signal_raw in ["LONG", "SHORT"]:
-        response += f"""
-🎯 *{labels['strategies']} ({signal}):*
-"""
-        for strat_key, strat_name, strat_emoji in [("conservative", labels["conservative"], "🟢"), ("moderate", labels["moderate"], "🟡"), ("aggressive", labels["aggressive"], "🔴")]:
-            strat = strategies.get(strat_key, {})
-            ko = strat.get("ko_level_usd", 0)
-            dist = strat.get("distance_pct", 0)
-            risk = risk_labels.get(strat.get("risk", "medium"), labels["medium"])
-            response += f"""{strat_emoji} *{strat_name}:* KO ${ko:,.0f} ({dist:.1f}%) - {risk}
-"""
+        response += f"\n🎯 *{labels['strategies']} ({signal}):*\n"
+        response += _format_strategies(strategies, risk_labels, labels)
 
     # HOLD with alternative
     if signal_raw == "HOLD" and hold_alternative:
         alt_dir = hold_alternative.get("direction", "LONG")
         alt_strategies = hold_alternative.get("strategies", {})
         alt_emoji = "📈" if alt_dir == "LONG" else "📉"
-
-        response += f"""
-{alt_emoji} *{labels['alternative']} ({alt_dir}):*
-"""
-        for strat_key, strat_name, strat_emoji in [("conservative", labels["conservative"], "🟢"), ("moderate", labels["moderate"], "🟡"), ("aggressive", labels["aggressive"], "🔴")]:
-            strat = alt_strategies.get(strat_key, {})
-            ko = strat.get("ko_level_usd", 0)
-            dist = strat.get("distance_pct", 0)
-            risk = risk_labels.get(strat.get("risk", "medium"), labels["medium"])
-            response += f"""{strat_emoji} *{strat_name}:* KO ${ko:,.0f} ({dist:.1f}%) - {risk}
-"""
+        response += f"\n{alt_emoji} *{labels['alternative']} ({alt_dir}):*\n"
+        response += _format_strategies(alt_strategies, risk_labels, labels)
 
     # Support zones
     if support_zones:
