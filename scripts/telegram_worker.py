@@ -32,6 +32,38 @@ from gemini_utils import (
 COMMODITIES = {"silver", "gold"}
 
 
+def send_telegram_photo(chat_id: str, photo_bytes: bytes, caption: str = None) -> bool:
+    """Send a photo to Telegram.
+
+    Args:
+        chat_id: Telegram chat ID
+        photo_bytes: Image data as bytes (PNG/JPEG)
+        caption: Optional caption (max 1024 chars)
+
+    Returns:
+        True if successful
+    """
+    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+
+    files = {"photo": ("chart.png", photo_bytes, "image/png")}
+    data = {"chat_id": chat_id}
+
+    if caption:
+        data["caption"] = caption[:1024]  # Telegram limit
+        data["parse_mode"] = "Markdown"
+
+    try:
+        response = requests.post(url, data=data, files=files)
+        if response.ok:
+            return True
+        print(f"Telegram sendPhoto error: {response.status_code} - {response.text[:200]}")
+        return False
+    except Exception as e:
+        print(f"Error sending photo: {e}")
+        return False
+
+
 def send_telegram_message(chat_id: str, text: str) -> bool:
     """Send a message to Telegram. Splits long messages automatically."""
     token = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -511,6 +543,20 @@ def main():
         # Run analysis with optional forced direction and current price
         result = run_analysis(symbol, lang, forced_direction=direction, current_price=stock_data['price'])
         print("Analysis complete")
+
+        # Send chart image first (if available)
+        chart_image = result.get("chart_image")
+        if chart_image:
+            try:
+                chart_image.seek(0)
+                chart_bytes = chart_image.read()
+                caption = f"📊 {symbol} Chart" if lang == "en" else f"📊 {symbol} Chart"
+                if send_telegram_photo(chat_id, chart_bytes, caption):
+                    print("Chart sent to Telegram")
+                else:
+                    print("Failed to send chart, continuing with text")
+            except Exception as e:
+                print(f"Error sending chart: {e}")
 
         # Format and send result (always use format_analyze_result now)
         message = format_analyze_result(symbol, result, stock_data, budget, lang)

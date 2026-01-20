@@ -720,6 +720,7 @@ def run_universal_analysis(symbol: str, trade_date: str = None, lang: str = "en"
         "trade_decision": final_decision,
         "final_trade_decision": final_decision.get("detailed_analysis", ""),
         "universal_mode": True,
+        "chart_image": chart_image,  # BytesIO or None
     }
 
 
