@@ -49,14 +49,23 @@ class Timeframes(BaseModel):
     long_term: str = Field(description="Signal for months to years: LONG, SHORT, or HOLD")
 
 
+class HoldAlternative(BaseModel):
+    """Alternative trade recommendation when main signal is HOLD."""
+    direction: str = Field(description="Alternative direction: LONG or SHORT")
+    rationale: str = Field(description="Brief reason for this alternative")
+    strategies: Strategies = Field(description="Knockout strategies for the alternative")
+
+
 class TradeDecisionSchema(BaseModel):
     """Complete trade decision output schema."""
     signal: str = Field(description="Main signal: LONG, SHORT, HOLD, or IGNORE")
     confidence: float = Field(description="Confidence level from 0.0 to 1.0")
     unable_to_assess: bool = Field(default=False, description="True if assessment not possible")
+    unable_to_assess_reason: Optional[str] = Field(default=None, description="Reason if unable to assess")
     price_usd: float = Field(description="Current price in USD")
     price_eur: float = Field(description="Current price in EUR")
     strategies: Strategies = Field(description="Three knockout strategies")
+    hold_alternative: Optional[HoldAlternative] = Field(default=None, description="Alternative if signal is HOLD")
     support_zones: List[SupportResistanceZone] = Field(description="Key support price zones")
     resistance_zones: List[SupportResistanceZone] = Field(description="Key resistance price zones")
     detailed_analysis: str = Field(description="300-500 word analysis with reasoning")

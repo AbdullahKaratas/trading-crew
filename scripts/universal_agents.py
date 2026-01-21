@@ -89,6 +89,48 @@ def detect_asset_type(symbol: str) -> str:
 
 
 # =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+def get_eur_usd_rate() -> float:
+    """
+    Get current EUR/USD exchange rate.
+
+    Priority:
+    1. yfinance (EURUSD=X) - fast and reliable
+    2. Gemini Search fallback
+    3. Conservative fallback (1.0)
+    """
+    # Try yfinance first
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker("EURUSD=X")
+        data = ticker.history(period="1d")
+        if not data.empty:
+            rate = float(data['Close'].iloc[-1])
+            print(f"  [FX] EUR/USD rate: {rate:.4f} (yfinance)")
+            return rate
+    except Exception as e:
+        print(f"  [FX] yfinance failed: {str(e)[:50]}")
+
+    # Fallback: Gemini Search
+    try:
+        prompt = "Current EUR/USD exchange rate today. Return ONLY JSON: {\"rate\": 1.08}"
+        response = call_gemini_flash(prompt, use_search=True)
+        data = parse_json_response(response)
+        if data and data.get("rate"):
+            rate = float(data["rate"])
+            print(f"  [FX] EUR/USD rate: {rate:.4f} (gemini)")
+            return rate
+    except Exception as e:
+        print(f"  [FX] Gemini fallback failed: {str(e)[:50]}")
+
+    # Last resort: conservative fallback
+    print("  [FX] Using fallback rate 1.0 (no conversion)")
+    return 1.0
+
+
+# =============================================================================
 # PHASE 1: DATA GATHERING (All via Gemini + Search)
 # =============================================================================
 
@@ -259,8 +301,8 @@ Keep response under 2000 words."""
     if state.get("chart_image"):
         try:
             return call_gemini_vision(prompt, state["chart_image"])
-        except Exception:
-            pass  # Fallback to text-only
+        except Exception as e:
+            print(f"  [Bull Vision] {state['symbol']} fallback to text: {str(e)[:80]}")
 
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
@@ -317,8 +359,8 @@ Keep response under 2000 words."""
     if state.get("chart_image"):
         try:
             return call_gemini_vision(prompt, state["chart_image"])
-        except Exception:
-            pass  # Fallback to text-only
+        except Exception as e:
+            print(f"  [Bear Vision] {state['symbol']} fallback to text: {str(e)[:80]}")
 
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
@@ -375,8 +417,8 @@ Keep response under 1500 words."""
     if state.get("chart_image"):
         try:
             return call_gemini_vision(prompt, state["chart_image"], model="gemini-3-pro-preview")
-        except Exception:
-            pass  # Fallback to text-only
+        except Exception as e:
+            print(f"  [Judge Vision] {state['symbol']} fallback to text: {str(e)[:80]}")
 
     return call_gemini_pro(prompt, use_search=True)
 
@@ -420,8 +462,8 @@ Keep response under 1200 words."""
     if state.get("chart_image"):
         try:
             return call_gemini_vision(prompt, state["chart_image"])
-        except Exception:
-            pass  # Fallback to text-only
+        except Exception as e:
+            print(f"  [Risky Vision] {state['symbol']} fallback to text: {str(e)[:80]}")
 
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
@@ -464,8 +506,8 @@ Keep response under 1200 words."""
     if state.get("chart_image"):
         try:
             return call_gemini_vision(prompt, state["chart_image"])
-        except Exception:
-            pass  # Fallback to text-only
+        except Exception as e:
+            print(f"  [Safe Vision] {state['symbol']} fallback to text: {str(e)[:80]}")
 
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
@@ -511,8 +553,8 @@ Keep response under 1200 words."""
     if state.get("chart_image"):
         try:
             return call_gemini_vision(prompt, state["chart_image"])
-        except Exception:
-            pass  # Fallback to text-only
+        except Exception as e:
+            print(f"  [Neutral Vision] {state['symbol']} fallback to text: {str(e)[:80]}")
 
     return call_gemini_flash(prompt, use_search=True, max_retries=2)
 
@@ -525,8 +567,8 @@ def risk_judge(state: UniversalDebateState) -> dict:
     """Risk Judge outputs structured JSON decision."""
     lang_instruction = get_language_instruction(state["lang"], "Write")
 
-    eur_rate = 0.95
-    price_eur = state['current_price'] * eur_rate
+    eur_rate = get_eur_usd_rate()
+    price_eur = state['current_price'] / eur_rate  # USD to EUR conversion
 
     # Get chart analysis if chart is available (adds visual pattern recognition)
     chart_analysis = ""
@@ -546,8 +588,8 @@ Keep response under 1000 words, focus on actionable observations."""
             chart_analysis = call_gemini_vision(chart_prompt, state["chart_image"])
             if chart_analysis:
                 chart_analysis = f"\n## Visual Chart Analysis:\n{chart_analysis}\n"
-        except Exception:
-            pass  # Continue without chart analysis
+        except Exception as e:
+            print(f"  [Chart Analysis] {state['symbol']} skipped: {str(e)[:80]}")
 
     prompt = f"""You are the FINAL RISK JUDGE for {state['symbol']}.
 
@@ -579,9 +621,10 @@ Use Google Search to verify latest news and price for {state['symbol']} today.
 Return ONLY valid JSON (no markdown):
 
 {{
-    "signal": "LONG or SHORT or HOLD",
+    "signal": "LONG or SHORT or HOLD or IGNORE",
     "confidence": <float 0.0-1.0 - see guidelines below>,
-    "unable_to_assess": false,
+    "unable_to_assess": <true or false - see guidelines below>,
+    "unable_to_assess_reason": "<if unable_to_assess is true, explain why briefly>",
     "price_usd": {state['current_price']:.2f},
     "price_eur": {price_eur:.2f},
     "strategies": {{
@@ -589,7 +632,7 @@ Return ONLY valid JSON (no markdown):
         "moderate": {{"ko_level_usd": <10-15% from price>, "distance_pct": <10-15>, "risk": "medium"}},
         "aggressive": {{"ko_level_usd": <5-10% from price>, "distance_pct": <5-10>, "risk": "high"}}
     }},
-    "hold_alternative": null,
+    "hold_alternative": <null if signal is LONG/SHORT, otherwise provide alternative - see guidelines>,
     "support_zones": [
         {{"level_usd": <price>, "description": "<reason>"}},
         {{"level_usd": <price>, "description": "<reason>"}}
@@ -623,7 +666,32 @@ For SHORT: KO levels ABOVE current price
 - 0.60-0.74: Moderate - mixed signals, some uncertainty
 - 0.45-0.59: Low - conflicting data, unclear direction
 - 0.30-0.44: Very Low - high uncertainty, weak signal
-- <0.30: Unreliable - consider HOLD instead"""
+- <0.30: Unreliable - set unable_to_assess to true
+
+**Unable to Assess Guidelines (BE HONEST - sometimes analysis is not possible):**
+Set "unable_to_assess": true AND "signal": "IGNORE" when:
+- Data is severely contradictory (confidence would be < 0.30)
+- Critical information is missing (no price data, no recent news)
+- Asset is illiquid, obscure, or potentially manipulated
+- Extreme market conditions (circuit breakers, flash crash, trading halt)
+- You genuinely cannot recommend any direction with confidence
+
+When unable_to_assess is true: signal must be "IGNORE", confidence should be 0.0
+
+**Hold Alternative Guidelines (for users who want to trade despite HOLD signal):**
+When signal is HOLD, provide hold_alternative with:
+{{
+    "hold_alternative": {{
+        "direction": "LONG or SHORT",
+        "rationale": "<brief reason why this direction if user insists on trading>",
+        "strategies": {{
+            "conservative": {{"ko_level_usd": <15-25% from price>, "distance_pct": <15-25>, "risk": "low"}},
+            "moderate": {{"ko_level_usd": <10-15% from price>, "distance_pct": <10-15>, "risk": "medium"}},
+            "aggressive": {{"ko_level_usd": <5-10% from price>, "distance_pct": <5-10>, "risk": "high"}}
+        }}
+    }}
+}}
+When signal is LONG, SHORT, or IGNORE: set hold_alternative to null"""
 
     # Use call_gemini_json with structured output schema
     # The schema guarantees valid JSON format - retries only for API errors

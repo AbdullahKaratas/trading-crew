@@ -111,12 +111,47 @@ Key fields in `TRADE_DECISION_SCHEMA`:
 - `support_zones` / `resistance_zones`
 - `detailed_analysis`: Full text reasoning
 
+## Data Integrity
+
+**CRITICAL: NEVER use fake/placeholder data. Users trust our analysis!**
+
+### Forbidden Patterns
+```python
+# ❌ NEVER DO THIS
+recent_low = current_price * 0.95   # Fake!
+week_52_high = current_price * 1.20  # Fake!
+eur_rate = 0.95                      # Hardcoded!
+"confidence": 0.75                   # Example value LLM copies!
+```
+
+### Required Patterns
+```python
+# ✅ Always fetch real data
+recent_low = hist["Low"].tail(20).min()           # Real yfinance data
+week_52_high = hist_1y["High"].max()              # Real yfinance data
+eur_rate = get_eur_usd_rate()                     # Live rate via yfinance/API
+"confidence": <float 0.0-1.0 - see guidelines>    # LLM calculates
+```
+
+### Data Sources Priority
+1. **yfinance** - Stocks, ETFs, Commodities (via futures symbols like `SI=F`, `GC=F`)
+2. **Gemini + Google Search** - Fallback for missing data
+3. **NEVER** - Hardcoded values or `price * factor` estimates
+
+### Commodity yfinance Symbols
+| Commodity | yfinance Symbol |
+|-----------|-----------------|
+| Silver | `SI=F` |
+| Gold | `GC=F` |
+| Oil (WTI) | `CL=F` |
+| Copper | `HG=F` |
+
 ## Coding Standards
 
 - Code comments: English
 - User-facing text: German (`de`) and English (`en`) support
 - Use `get_language_instruction(lang)` for LLM prompts
-- Always use try/except with meaningful errors
+- Always use try/except with meaningful errors **and logging** (never bare `except: pass`)
 - Telegram: Markdown format, 4000 char limit (auto-split)
 
 ## Commands
@@ -138,8 +173,8 @@ Key fields in `TRADE_DECISION_SCHEMA`:
 ### yfinance Fallback
 When yfinance fails (e.g., European stocks like `EOAN`):
 1. Tries common suffixes: `.DE`, `.L`, `.PA`, `.AS`, `.MI`, `.SW`
-2. Falls back to Gemini Search for price only
-3. Support/resistance values are placeholders - actual values come from LLM analysis
+2. Falls back to Gemini Search for price AND historical levels (52-week, recent highs/lows)
+3. For commodities: Use futures symbols (`SI=F`, `GC=F`) which work with yfinance
 
 ## Testing
 

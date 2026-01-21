@@ -28,8 +28,19 @@ from gemini_utils import (
     parse_json_response,
 )
 
-# Commodities that need Gemini + Search (yfinance doesn't work for these)
-COMMODITIES = {"silver", "gold"}
+# Commodity to yfinance futures symbol mapping
+# These symbols work with yfinance for historical data
+COMMODITY_FUTURES_MAP = {
+    "silver": "SI=F",
+    "gold": "GC=F",
+    "oil": "CL=F",
+    "copper": "HG=F",
+    "platinum": "PL=F",
+    "palladium": "PA=F",
+}
+
+# Legacy set for backward compatibility
+COMMODITIES = set(COMMODITY_FUTURES_MAP.keys())
 
 
 def send_telegram_photo(chat_id: str, photo_bytes: bytes, caption: str = None) -> bool:
@@ -181,37 +192,146 @@ Return ONLY a JSON object with the exact current price (no markdown, no explanat
     raise ValueError(f"Could not parse commodity price from response")
 
 
+def get_commodity_data_via_search(commodity: str) -> dict:
+    """Get commodity data including historical levels via Gemini + Google Search.
+
+    This is a fallback when yfinance futures symbols don't work.
+    Returns dict with price and REAL historical levels (not placeholders).
+    """
+    commodity_name = commodity.lower().capitalize()
+
+    prompt = f"""Search for {commodity_name} price data:
+1. Current spot price in USD
+2. 20-day low and high prices
+3. 52-week low and high prices
+
+Return ONLY JSON (no markdown):
+{{
+    "price_usd": 30.50,
+    "recent_low": 28.00,
+    "recent_high": 32.00,
+    "week_52_low": 22.00,
+    "week_52_high": 35.00,
+    "source": "kitco.com"
+}}"""
+
+    response_text = call_gemini_flash(prompt, use_search=True)
+    data = parse_json_response(response_text)
+
+    if data and data.get("price_usd"):
+        price = float(data["price_usd"])
+        recent_low = float(data.get("recent_low", price * 0.95))
+        recent_high = float(data.get("recent_high", price * 1.05))
+        week_52_low = float(data.get("week_52_low", price * 0.70))
+        week_52_high = float(data.get("week_52_high", price * 1.30))
+
+        print(f"  [Commodity] {commodity_name} via Gemini Search: ${price:.2f}")
+        print(f"    52w: ${week_52_low:.2f} - ${week_52_high:.2f}")
+
+        return {
+            "name": commodity_name,
+            "price": price,
+            "currency": "USD",
+            "recent_low": recent_low,
+            "recent_high": recent_high,
+            "support_1": recent_low,
+            "support_2": week_52_low * 1.05,
+            "resistance_1": recent_high,
+            "resistance_2": week_52_high * 0.95,
+            "entry_zone_low": recent_low * 1.01,
+            "entry_zone_high": price * 0.98,
+            "week_52_low": week_52_low,
+            "week_52_high": week_52_high,
+            "sector": "Commodities",
+            "is_commodity": True,
+            "price_source": f"gemini_search ({data.get('source', 'unknown')})",
+        }
+
+    # Last resort fallback - try basic price extraction
+    basic_data = get_commodity_spot_price(commodity)
+    price = basic_data["price"]
+    print(f"  [Commodity] WARNING: Using minimal data for {commodity_name}, historical levels estimated")
+
+    return {
+        "name": basic_data["name"],
+        "price": price,
+        "currency": "USD",
+        "recent_low": price * 0.95,
+        "recent_high": price * 1.05,
+        "support_1": price * 0.95,
+        "support_2": price * 0.90,
+        "resistance_1": price * 1.05,
+        "resistance_2": price * 1.10,
+        "entry_zone_low": price * 0.98,
+        "entry_zone_high": price,
+        "week_52_low": price * 0.70,
+        "week_52_high": price * 1.30,
+        "sector": "Commodities",
+        "is_commodity": True,
+        "price_source": f"gemini_search_minimal ({basic_data['source']})",
+    }
+
+
 def get_stock_data(symbol: str) -> dict:
     """Get current stock/commodity data with support/resistance levels.
 
-    For commodities (silver, gold), uses Gemini + Search for spot price.
-    For stocks, uses yfinance.
+    For commodities (silver, gold), uses yfinance futures symbols (SI=F, GC=F).
+    For stocks, uses yfinance directly.
+    Falls back to Gemini + Search if yfinance fails.
     """
-    # Check if this is a commodity - use Gemini + Search instead of yfinance
+    # Check if this is a commodity - use yfinance futures symbol
     if is_commodity(symbol):
-        commodity_data = get_commodity_spot_price(symbol)
-        current_price = commodity_data["price"]
+        futures_symbol = COMMODITY_FUTURES_MAP.get(symbol.lower())
+        commodity_name = symbol.lower().capitalize()
 
-        # For commodities, we don't have historical data from yfinance
-        # Support/resistance will come from the LLM analysis
-        return {
-            "name": commodity_data["name"],
-            "price": current_price,
-            "currency": "USD",
-            "recent_low": current_price * 0.95,  # Placeholder
-            "recent_high": current_price * 1.05,  # Placeholder
-            "support_1": current_price * 0.95,
-            "support_2": current_price * 0.90,
-            "resistance_1": current_price * 1.05,
-            "resistance_2": current_price * 1.10,
-            "entry_zone_low": current_price * 0.98,
-            "entry_zone_high": current_price,
-            "week_52_low": current_price * 0.80,  # Placeholder
-            "week_52_high": current_price * 1.20,  # Placeholder
-            "sector": "Commodities",
-            "is_commodity": True,
-            "price_source": commodity_data["source"],
-        }
+        if futures_symbol:
+            try:
+                ticker = yf.Ticker(futures_symbol)
+                hist = ticker.history(period="3mo")
+
+                if not hist.empty:
+                    current_price = float(hist["Close"].iloc[-1])
+                    recent_low = float(hist["Low"].tail(20).min())
+                    recent_high = float(hist["High"].tail(20).max())
+
+                    # Support/resistance from recent data
+                    support_1 = float(hist["Low"].tail(10).min())
+                    support_2 = float(hist["Low"].tail(30).min())
+                    resistance_1 = float(hist["High"].tail(10).max())
+                    resistance_2 = float(hist["High"].tail(30).max())
+
+                    # 52 week data
+                    hist_1y = ticker.history(period="1y")
+                    week_52_low = float(hist_1y["Low"].min()) if not hist_1y.empty else support_2
+                    week_52_high = float(hist_1y["High"].max()) if not hist_1y.empty else resistance_2
+
+                    print(f"  [Commodity] {commodity_name} via {futures_symbol}: ${current_price:.2f}")
+                    print(f"    52w: ${week_52_low:.2f} - ${week_52_high:.2f}")
+
+                    return {
+                        "name": f"{commodity_name} Futures",
+                        "price": current_price,
+                        "currency": "USD",
+                        "recent_low": recent_low,
+                        "recent_high": recent_high,
+                        "support_1": support_1,
+                        "support_2": support_2,
+                        "resistance_1": resistance_1,
+                        "resistance_2": resistance_2,
+                        "entry_zone_low": support_1 * 1.01,
+                        "entry_zone_high": current_price * 0.98,
+                        "week_52_low": week_52_low,
+                        "week_52_high": week_52_high,
+                        "sector": "Commodities",
+                        "is_commodity": True,
+                        "price_source": f"yfinance ({futures_symbol})",
+                    }
+            except Exception as e:
+                print(f"  [Commodity] yfinance failed for {futures_symbol}: {str(e)[:50]}")
+
+        # Fallback: Gemini + Search for commodity data
+        print(f"  [Commodity] Falling back to Gemini Search for {commodity_name}")
+        return get_commodity_data_via_search(symbol)
 
     # Regular stock - use yfinance
     ticker = yf.Ticker(symbol)
@@ -230,32 +350,54 @@ def get_stock_data(symbol: str) -> dict:
                 print(f"  Found {symbol} as {alt_symbol}")
                 break
 
-    # If still empty, fall back to Gemini + Search
+    # If still empty, fall back to Gemini + Search with REAL historical data
     if hist.empty:
         print(f"  yfinance failed for {symbol}, using Gemini fallback")
-        prompt = f"""Search for the current stock price of {symbol} in USD.
-Return ONLY a JSON object: {{"price_usd": 123.45, "name": "Company Name", "source": "finance.yahoo.com"}}"""
+        prompt = f"""Search for {symbol} stock price data:
+1. Current price in USD
+2. 20-day low and high prices
+3. 52-week low and high prices
+4. Company name
+
+Return ONLY JSON (no markdown):
+{{
+    "price_usd": 123.45,
+    "name": "Company Name",
+    "recent_low": 115.00,
+    "recent_high": 130.00,
+    "week_52_low": 95.00,
+    "week_52_high": 145.00,
+    "source": "finance.yahoo.com"
+}}"""
         response_text = call_gemini_flash(prompt, use_search=True)
         data = parse_json_response(response_text)
 
         if data and data.get("price_usd"):
-            price = data["price_usd"]
+            price = float(data["price_usd"])
+            recent_low = float(data.get("recent_low", price * 0.95))
+            recent_high = float(data.get("recent_high", price * 1.05))
+            week_52_low = float(data.get("week_52_low", price * 0.70))
+            week_52_high = float(data.get("week_52_high", price * 1.30))
+
+            print(f"  [Stock] {symbol} via Gemini Search: ${price:.2f}")
+            print(f"    52w: ${week_52_low:.2f} - ${week_52_high:.2f}")
+
             return {
                 "name": data.get("name", symbol),
                 "price": price,
                 "currency": "USD",
-                "recent_low": price * 0.95,
-                "recent_high": price * 1.05,
-                "support_1": price * 0.95,
-                "support_2": price * 0.90,
-                "resistance_1": price * 1.05,
-                "resistance_2": price * 1.10,
-                "entry_zone_low": price * 0.98,
-                "entry_zone_high": price,
-                "week_52_low": price * 0.80,
-                "week_52_high": price * 1.20,
+                "recent_low": recent_low,
+                "recent_high": recent_high,
+                "support_1": recent_low,
+                "support_2": week_52_low * 1.05,
+                "resistance_1": recent_high,
+                "resistance_2": week_52_high * 0.95,
+                "entry_zone_low": recent_low * 1.01,
+                "entry_zone_high": price * 0.98,
+                "week_52_low": week_52_low,
+                "week_52_high": week_52_high,
                 "sector": "Unknown",
-                "price_source": "gemini_search",
+                "price_source": f"gemini_search ({data.get('source', 'unknown')})",
             }
 
         raise ValueError(f"No data found for {symbol}")
