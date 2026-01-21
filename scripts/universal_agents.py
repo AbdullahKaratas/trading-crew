@@ -133,7 +133,7 @@ Provide:
 - Volume analysis
 
 {lang_instruction}
-Keep response under 500 words."""
+Keep response under 1000 words."""
 
     technical_data = call_gemini_flash(technical_prompt, use_search=True) or "No technical data available."
 
@@ -152,7 +152,7 @@ Focus on:
 - Currency movements affecting this asset
 
 {lang_instruction}
-Keep response under 400 words."""
+Keep response under 800 words."""
 
     news_data = call_gemini_flash(news_prompt, use_search=True) or "No recent news available."
 
@@ -170,7 +170,7 @@ Provide:
 - Recent insider activity
 
 {lang_instruction}
-Keep response under 400 words."""
+Keep response under 800 words."""
     else:
         fundamental_prompt = f"""Search for market context of {symbol} as of {trade_date}.
 
@@ -186,7 +186,7 @@ Provide:
 - USD strength impact
 
 {lang_instruction}
-Keep response under 400 words."""
+Keep response under 800 words."""
 
     fundamental_data = call_gemini_flash(fundamental_prompt, use_search=True) or "No fundamental data available."
 
@@ -252,7 +252,7 @@ Build a strong case for why {state['symbol']} will RISE. Focus on:
 4. Why bears are wrong
 
 Be specific with price targets. {lang_instruction}
-Keep response under 500 words."""
+Keep response under 1000 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -310,7 +310,7 @@ Build a strong case for why {state['symbol']} will FALL. Focus on:
 4. Why bulls are wrong
 
 Be specific with downside targets. {lang_instruction}
-Keep response under 500 words."""
+Keep response under 1000 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -358,7 +358,7 @@ End with exactly one of:
 - RECOMMENDATION: **HOLD**
 
 {lang_instruction}
-Keep response under 400 words."""
+Keep response under 800 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -393,7 +393,7 @@ Advocate for HIGH-REWARD strategies:
 - Why waiting is wrong
 
 Propose aggressive knockout levels. {lang_instruction}
-Keep response under 300 words."""
+Keep response under 600 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -426,7 +426,7 @@ Advocate for CAPITAL PRESERVATION:
 - Wait for better entries
 
 Propose conservative knockout levels. {lang_instruction}
-Keep response under 300 words."""
+Keep response under 600 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -463,7 +463,7 @@ Provide BALANCE:
 - What's the practical middle ground?
 
 Propose moderate knockout levels. {lang_instruction}
-Keep response under 300 words."""
+Keep response under 600 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -500,7 +500,7 @@ Identify and report:
 5. CMF/OBV money flow direction
 6. Critical support and resistance levels visible on chart
 
-Keep response under 200 words, focus on actionable observations."""
+Keep response under 500 words, focus on actionable observations."""
             chart_analysis = call_gemini_vision(chart_prompt, state["chart_image"])
             if chart_analysis:
                 chart_analysis = f"\n## Visual Chart Analysis:\n{chart_analysis}\n"
