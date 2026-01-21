@@ -146,6 +146,10 @@ Focus on:
 - Major announcements
 - Sector/industry news
 - Market-moving events
+- Geopolitical events (wars, sanctions, elections)
+- Trade policy (tariffs, trade wars, export restrictions)
+- Central bank policy (interest rates, QE, gold reserves)
+- Currency movements affecting this asset
 
 {lang_instruction}
 Keep response under 400 words."""
@@ -176,7 +180,10 @@ Provide:
 - Macro economic factors
 - COT positioning (if applicable)
 - ETF flows
-- Central bank policy impact
+- Central bank policy (interest rates, gold/silver reserves)
+- Tariffs and trade policy impact
+- Geopolitical risk (safe-haven demand)
+- USD strength impact
 
 {lang_instruction}
 Keep response under 400 words."""
