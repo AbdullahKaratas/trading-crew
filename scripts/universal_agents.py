@@ -580,7 +580,7 @@ Return ONLY valid JSON (no markdown):
 
 {{
     "signal": "LONG or SHORT or HOLD",
-    "confidence": 0.75,
+    "confidence": <float 0.0-1.0 - see guidelines below>,
     "unable_to_assess": false,
     "price_usd": {state['current_price']:.2f},
     "price_eur": {price_eur:.2f},
@@ -615,7 +615,15 @@ Timeframes CAN differ (e.g., SHORT short_term due to overbought, LONG long_term 
 The main "signal" should match your PRIMARY recommendation.
 
 For LONG: KO levels BELOW current price
-For SHORT: KO levels ABOVE current price"""
+For SHORT: KO levels ABOVE current price
+
+**Confidence Guidelines (BE HONEST - vary this based on actual signal clarity):**
+- 0.90-1.0: Exceptional - all indicators align, strong catalyst, clear trend
+- 0.75-0.89: High - most indicators agree, good risk/reward
+- 0.60-0.74: Moderate - mixed signals, some uncertainty
+- 0.45-0.59: Low - conflicting data, unclear direction
+- 0.30-0.44: Very Low - high uncertainty, weak signal
+- <0.30: Unreliable - consider HOLD instead"""
 
     # Use call_gemini_json with structured output schema
     # The schema guarantees valid JSON format - retries only for API errors
