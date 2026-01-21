@@ -14,13 +14,18 @@
 All LLM calls MUST go through `scripts/gemini_utils.py`:
 
 ```python
-from gemini_utils import call_gemini_flash, call_gemini_pro
+from gemini_utils import call_gemini_flash, call_gemini_pro, call_gemini_vision
 
 # Fast tasks with Google Search
 response = call_gemini_flash(prompt, use_search=True)
 
 # Deep thinking without search
 response = call_gemini_pro(prompt, use_search=False)
+
+# Vision analysis with chart image
+from chart_vision import create_chart_for_analysis
+chart_image = create_chart_for_analysis(symbol)  # Returns BytesIO
+response = call_gemini_vision(prompt, chart_image)
 ```
 
 **Do NOT use Claude/Anthropic or OpenAI APIs in this project.**
@@ -30,7 +35,8 @@ response = call_gemini_pro(prompt, use_search=False)
 ```
 trading-crew/
 ├── scripts/
-│   ├── gemini_utils.py         # Gemini API (USE THIS!)
+│   ├── gemini_utils.py         # Gemini API (Flash, Pro, Vision)
+│   ├── chart_vision.py         # 4-panel chart generator (Plotly)
 │   ├── universal_agents.py     # Multi-agent debate system
 │   ├── telegram_worker.py      # /analyze command
 │   └── comparison_worker.py    # /vs command
@@ -48,8 +54,24 @@ trading-crew/
 1. Telegram Bot → Supabase Edge Function (external)
 2. Edge Function → GitHub Actions (`repository_dispatch`)
 3. GitHub Action → Python script
-4. Python → Gemini API via `gemini_utils.py`
-5. Response → Telegram via `send_telegram_message()`
+4. Symbol Resolution → Gemini finds yfinance symbol
+5. Chart Generation → 4-panel PNG via `chart_vision.py`
+6. Multi-Agent Debate → All 7 agents receive chart + text data
+7. Chart Image → Telegram via `send_telegram_photo()`
+8. Analysis Text → Telegram via `send_telegram_message()`
+
+## Chart Vision
+
+The system generates a 4-panel technical chart for AI analysis:
+
+| Panel | Indicators |
+|-------|------------|
+| Price | Candlesticks, SMA 50 (orange), SMA 200 (purple) |
+| RSI | RSI(14), Overbought (70), Oversold (30) lines |
+| Volume | Green (bullish) / Red (bearish) bars |
+| Money Flow | CMF(20) area, OBV line |
+
+All 7 agents (Bull, Bear, Investment Judge, Risky, Safe, Neutral, Risk Judge) receive the chart via Gemini Vision API.
 
 ## Trade Decision Schema
 
@@ -96,6 +118,7 @@ When yfinance fails (e.g., European stocks like `EOAN`):
 ```bash
 # Syntax check
 python3 -m py_compile scripts/gemini_utils.py
+python3 -m py_compile scripts/chart_vision.py
 python3 -m py_compile scripts/universal_agents.py
 python3 -m py_compile scripts/telegram_worker.py
 python3 -m py_compile scripts/comparison_worker.py
