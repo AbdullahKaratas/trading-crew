@@ -69,8 +69,12 @@ def fetch_ohlcv_for_chart(symbol: str, period: str = "1y") -> Optional[np.ndarra
             return None
 
         # Convert to numpy array: [timestamp_ms, open, high, low, close, volume]
+        # Use .view('int64') for reliable nanosecond extraction from DatetimeIndex
+        timestamps_ns = df.index.view('int64')  # nanoseconds since epoch
+        timestamps_ms = (timestamps_ns // 10**6).astype(float)  # convert to milliseconds
+
         ohlcv = np.column_stack([
-            df.index.astype(np.int64) // 10**6,  # timestamp in ms
+            timestamps_ms,
             df['Open'].values,
             df['High'].values,
             df['Low'].values,
@@ -78,7 +82,8 @@ def fetch_ohlcv_for_chart(symbol: str, period: str = "1y") -> Optional[np.ndarra
             df['Volume'].values,
         ])
 
-        print(f"  [Chart] Fetched {len(ohlcv)} candles for {symbol}")
+        # Debug: verify timestamps are correct (should be ~1.7e12 for 2024/2025)
+        print(f"  [Chart] Fetched {len(ohlcv)} candles for {symbol}, timestamp range: {timestamps_ms[0]:.0f} - {timestamps_ms[-1]:.0f}")
         return ohlcv
 
     except Exception as e:
@@ -231,8 +236,14 @@ def generate_trading_chart(
                 indicators = {k: v[-AI_CANDLE_LIMIT:] if v is not None else None
                               for k, v in indicators.items()}
 
-        # Parse data
-        timestamps = pd.to_datetime(ohlcv[:, 0], unit='ms').to_pydatetime().tolist()
+        # Parse data - convert milliseconds to datetime
+        timestamps_ms = ohlcv[:, 0]
+        # Validate timestamps are reasonable (should be between 2000 and 2100)
+        min_valid_ms = pd.Timestamp('2000-01-01').value // 10**6
+        max_valid_ms = pd.Timestamp('2100-01-01').value // 10**6
+        if timestamps_ms[-1] < min_valid_ms or timestamps_ms[-1] > max_valid_ms:
+            print(f"  [Chart] WARNING: Timestamps out of range: {timestamps_ms[-1]:.0f} (expected {min_valid_ms:.0f}-{max_valid_ms:.0f})")
+        timestamps = pd.to_datetime(timestamps_ms, unit='ms').tolist()
         opens = ohlcv[:, 1].astype(float)
         highs = ohlcv[:, 2].astype(float)
         lows = ohlcv[:, 3].astype(float)
