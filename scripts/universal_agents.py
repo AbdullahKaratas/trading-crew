@@ -133,7 +133,7 @@ Provide:
 - Volume analysis
 
 {lang_instruction}
-Keep response under 1000 words."""
+Keep response under 2000 words."""
 
     technical_data = call_gemini_flash(technical_prompt, use_search=True) or "No technical data available."
 
@@ -152,7 +152,7 @@ Focus on:
 - Currency movements (USD strength/weakness)
 
 {lang_instruction}
-Keep response under 800 words."""
+Keep response under 1500 words."""
 
     news_data = call_gemini_flash(news_prompt, use_search=True) or "No recent news available."
 
@@ -170,7 +170,7 @@ Provide:
 - Tariff/trade war risk for this company
 
 {lang_instruction}
-Keep response under 800 words."""
+Keep response under 1500 words."""
     else:
         fundamental_prompt = f"""Search for market context of {symbol} as of {trade_date}.
 
@@ -187,7 +187,7 @@ Provide:
 - Import/export restrictions
 
 {lang_instruction}
-Keep response under 800 words."""
+Keep response under 1500 words."""
 
     fundamental_data = call_gemini_flash(fundamental_prompt, use_search=True) or "No fundamental data available."
 
@@ -253,7 +253,7 @@ Build a strong case for why {state['symbol']} will RISE. Focus on:
 4. Why bears are wrong
 
 Be specific with price targets. {lang_instruction}
-Keep response under 1000 words."""
+Keep response under 2000 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -311,7 +311,7 @@ Build a strong case for why {state['symbol']} will FALL. Focus on:
 4. Why bulls are wrong
 
 Be specific with downside targets. {lang_instruction}
-Keep response under 1000 words."""
+Keep response under 2000 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -342,16 +342,26 @@ The chart shows: Price+SMA, RSI, Volume, and CMF/OBV indicators.
 {chart_instruction}
 Use Google Search to verify the latest news and current situation for {state['symbol']}.
 
+## Technical Analysis (Raw Data)
+{state['technical_data']}
+
+## News & Events (Raw Data)
+{state['news_data']}
+
+## Fundamentals/Context (Raw Data)
+{state['fundamental_data']}
+
 ## Full Debate History
 {state['investment_debate_history']}
 
 ## Your Task
 1. Review the chart (if available) to verify technical claims
-2. Verify current market conditions via Google Search
-3. Evaluate which side presented stronger evidence
-4. Identify the 2-3 most important factors
-5. Acknowledge main risks
-6. Make a decision: **LONG**, **SHORT**, or **HOLD**
+2. Consider ALL data: technicals, news, fundamentals - not just the debate summary
+3. Pay special attention to geopolitical events, tariffs, partnerships, product launches
+4. Evaluate which side presented stronger evidence
+5. Identify the 2-3 most important factors
+6. Acknowledge main risks
+7. Make a decision: **LONG**, **SHORT**, or **HOLD**
 
 End with exactly one of:
 - RECOMMENDATION: **LONG**
@@ -359,7 +369,7 @@ End with exactly one of:
 - RECOMMENDATION: **HOLD**
 
 {lang_instruction}
-Keep response under 800 words."""
+Keep response under 1500 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -388,13 +398,23 @@ def risky_analyst(state: UniversalDebateState) -> str:
 ## Investment Decision: **{state['investment_decision']}**
 ## Current Price: ${state['current_price']:.2f}
 {chart_instruction}
+## Technical Analysis
+{state['technical_data']}
+
+## News & Events
+{state['news_data']}
+
+## Fundamentals/Context
+{state['fundamental_data']}
+
 Advocate for HIGH-REWARD strategies:
 - Tight stop-losses (5-8% from price)
 - Maximize upside potential
 - Why waiting is wrong
+- Consider news catalysts that could accelerate the move
 
 Propose aggressive knockout levels. {lang_instruction}
-Keep response under 600 words."""
+Keep response under 1200 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -418,16 +438,27 @@ def safe_analyst(state: UniversalDebateState) -> str:
 
 ## Investment Decision: **{state['investment_decision']}**
 ## Current Price: ${state['current_price']:.2f}
+{chart_instruction}
+## Technical Analysis
+{state['technical_data']}
+
+## News & Events
+{state['news_data']}
+
+## Fundamentals/Context
+{state['fundamental_data']}
+
 ## Risky Analyst's Position:
 {state.get('risky_arguments', '')}
-{chart_instruction}
+
 Advocate for CAPITAL PRESERVATION:
 - Wide stop-losses (15-25% from price)
-- Why aggressive approach is dangerous
+- Why aggressive approach is dangerous given current news/geopolitical risks
 - Wait for better entries
+- Highlight news risks that could cause sudden moves against the position
 
 Propose conservative knockout levels. {lang_instruction}
-Keep response under 600 words."""
+Keep response under 1200 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -451,20 +482,30 @@ def neutral_analyst(state: UniversalDebateState) -> str:
 
 ## Investment Decision: **{state['investment_decision']}**
 ## Current Price: ${state['current_price']:.2f}
+{chart_instruction}
+## Technical Analysis
+{state['technical_data']}
+
+## News & Events
+{state['news_data']}
+
+## Fundamentals/Context
+{state['fundamental_data']}
 
 ## Risky Position:
 {state.get('risky_arguments', '')}
 
 ## Safe Position:
 {state.get('safe_arguments', '')}
-{chart_instruction}
+
 Provide BALANCE:
-- Where is Risky too aggressive?
-- Where is Safe too cautious?
-- What's the practical middle ground?
+- Where is Risky too aggressive given current news environment?
+- Where is Safe too cautious given the fundamentals?
+- What's the practical middle ground considering all factors?
+- How do geopolitical/macro factors affect the risk/reward?
 
 Propose moderate knockout levels. {lang_instruction}
-Keep response under 600 words."""
+Keep response under 1200 words."""
 
     # Try vision API if chart available, fallback to text
     if state.get("chart_image"):
@@ -501,7 +542,7 @@ Identify and report:
 5. CMF/OBV money flow direction
 6. Critical support and resistance levels visible on chart
 
-Keep response under 500 words, focus on actionable observations."""
+Keep response under 1000 words, focus on actionable observations."""
             chart_analysis = call_gemini_vision(chart_prompt, state["chart_image"])
             if chart_analysis:
                 chart_analysis = f"\n## Visual Chart Analysis:\n{chart_analysis}\n"
@@ -515,6 +556,15 @@ Keep response under 500 words, focus on actionable observations."""
 
 Use Google Search to verify latest news and price for {state['symbol']} today.
 {chart_analysis}
+## Technical Analysis (Raw Data)
+{state['technical_data']}
+
+## News & Events (Raw Data) - IMPORTANT: Consider geopolitical factors, tariffs, partnerships!
+{state['news_data']}
+
+## Fundamentals/Context (Raw Data)
+{state['fundamental_data']}
+
 ## Investment Decision: {state['investment_decision']}
 
 ## Investment Debate (Why this decision was made):
@@ -548,7 +598,7 @@ Return ONLY valid JSON (no markdown):
         {{"level_usd": <price>, "description": "<reason>"}},
         {{"level_usd": <price>, "description": "<reason>"}}
     ],
-    "detailed_analysis": "<300-500 word analysis including timeframe reasoning. {lang_instruction}>",
+    "detailed_analysis": "<500-800 word analysis including timeframe reasoning, geopolitical factors, and key news. {lang_instruction}>",
     "timeframes": {{
         "short_term": "LONG or SHORT or HOLD",
         "medium_term": "LONG or SHORT or HOLD",

@@ -73,6 +73,34 @@ The system generates a 4-panel technical chart for AI analysis:
 
 All 7 agents (Bull, Bear, Investment Judge, Risky, Safe, Neutral, Risk Judge) receive the chart via Gemini Vision API.
 
+## Agent Data Requirements
+
+**CRITICAL: ALL 7 agents must receive ALL gathered data sources.**
+
+Each agent prompt MUST include:
+- `state['technical_data']` - Price action, indicators, support/resistance
+- `state['news_data']` - News, geopolitics, tariffs, partnerships, product launches
+- `state['fundamental_data']` - Financials, macro context, supply/demand
+- `state['chart_image']` - 4-panel technical chart (if available)
+
+**Why this matters:**
+- Judges only seeing debate summaries lose critical details
+- Geopolitical events, tariffs, partnerships get filtered out
+- Final analysis becomes too technical/chart-focused
+- Important news catalysts are ignored in risk assessment
+
+**Never let an agent make decisions without full context!**
+
+| Agent | technical_data | news_data | fundamental_data | chart_image |
+|-------|----------------|-----------|------------------|-------------|
+| Bull Analyst | ✅ | ✅ | ✅ | ✅ |
+| Bear Analyst | ✅ | ✅ | ✅ | ✅ |
+| Investment Judge | ✅ | ✅ | ✅ | ✅ |
+| Risky Analyst | ✅ | ✅ | ✅ | ✅ |
+| Safe Analyst | ✅ | ✅ | ✅ | ✅ |
+| Neutral Analyst | ✅ | ✅ | ✅ | ✅ |
+| Risk Judge | ✅ | ✅ | ✅ | ✅ |
+
 ## Trade Decision Schema
 
 Key fields in `TRADE_DECISION_SCHEMA`:
