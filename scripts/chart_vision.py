@@ -69,9 +69,8 @@ def fetch_ohlcv_for_chart(symbol: str, period: str = "1y") -> Optional[np.ndarra
             return None
 
         # Convert to numpy array: [timestamp_ms, open, high, low, close, volume]
-        # Use .view('int64') for reliable nanosecond extraction from DatetimeIndex
-        timestamps_ns = df.index.view('int64')  # nanoseconds since epoch
-        timestamps_ms = (timestamps_ns // 10**6).astype(float)  # convert to milliseconds
+        # Use timestamp() method which works reliably across all pandas versions and timezones
+        timestamps_ms = np.array([ts.timestamp() * 1000 for ts in df.index], dtype=float)
 
         ohlcv = np.column_stack([
             timestamps_ms,
@@ -83,7 +82,7 @@ def fetch_ohlcv_for_chart(symbol: str, period: str = "1y") -> Optional[np.ndarra
         ])
 
         # Debug: verify timestamps are correct (should be ~1.7e12 for 2024/2025)
-        print(f"  [Chart] Fetched {len(ohlcv)} candles for {symbol}, timestamp range: {timestamps_ms[0]:.0f} - {timestamps_ms[-1]:.0f}")
+        print(f"  [Chart] Fetched {len(ohlcv)} candles for {symbol}, ts_range: {timestamps_ms[0]:.0f} - {timestamps_ms[-1]:.0f} ms")
         return ohlcv
 
     except Exception as e:
