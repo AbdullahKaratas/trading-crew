@@ -147,9 +147,9 @@ Focus on:
 - Sector/industry news
 - Market-moving events
 - Geopolitical events (wars, sanctions, elections)
-- Trade policy (tariffs, trade wars, export restrictions)
-- Central bank policy (interest rates, QE, gold reserves)
-- Currency movements affecting this asset
+- US/Trump tariffs and trade policy (China, Mexico, EU tariffs)
+- Central bank policy (Fed, ECB interest rates, QE)
+- Currency movements (USD strength/weakness)
 
 {lang_instruction}
 Keep response under 800 words."""
@@ -161,13 +161,13 @@ Keep response under 800 words."""
         fundamental_prompt = f"""Search for fundamental data of {symbol} as of {trade_date}.
 
 Provide:
-- Market Cap
-- P/E Ratio
-- Revenue growth
-- Profit margins
+- Market Cap and P/E Ratio
+- Revenue growth and profit margins
 - Debt levels
 - Competitive position
 - Recent insider activity
+- Supply chain exposure (China, Mexico, EU)
+- Tariff/trade war risk for this company
 
 {lang_instruction}
 Keep response under 800 words."""
@@ -180,10 +180,11 @@ Provide:
 - Macro economic factors
 - COT positioning (if applicable)
 - ETF flows
-- Central bank policy (interest rates, gold/silver reserves)
-- Tariffs and trade policy impact
-- Geopolitical risk (safe-haven demand)
-- USD strength impact
+- Central bank policy (Fed rates, gold/silver reserves)
+- US/Trump tariffs impact (China, Mexico, EU)
+- Geopolitical risk and safe-haven demand
+- USD strength/weakness impact
+- Import/export restrictions
 
 {lang_instruction}
 Keep response under 800 words."""
