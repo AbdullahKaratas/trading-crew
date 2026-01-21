@@ -18,14 +18,28 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from universal_agents import run_universal_analysis
 from gemini_utils import call_gemini_pro, get_language_instruction
-from telegram_worker import send_telegram_message, resolve_symbol
+from telegram_worker import send_telegram_message, send_telegram_photo, resolve_symbol
 
 
-def run_single_analysis(symbol: str, lang: str) -> dict:
-    """Run analysis for a single symbol."""
+def run_single_analysis(symbol: str, lang: str, chat_id: str = None) -> dict:
+    """Run analysis for a single symbol and send chart if available."""
     try:
         today = date.today().isoformat()
         result = run_universal_analysis(symbol, trade_date=today, lang=lang)
+
+        # Send chart to Telegram if available
+        if chat_id and result.get("chart_image"):
+            try:
+                chart_bytes = result["chart_image"].getvalue()
+                trade = result.get("trade_decision", {})
+                signal = trade.get("signal", "?")
+                conf = trade.get("confidence", 0)
+                caption = f"📊 {symbol}: {signal} ({conf:.0%})"
+                send_telegram_photo(chat_id, chart_bytes, caption)
+                print(f"  [Chart] {symbol} sent to Telegram")
+            except Exception as e:
+                print(f"  [Chart] Failed to send {symbol}: {str(e)[:50]}")
+
         return {
             "symbol": symbol,
             "success": True,
@@ -180,7 +194,7 @@ def main():
         for i, sym in enumerate(symbols):
             if i > 0:
                 time.sleep(2)  # Small delay between submissions to avoid rate limits
-            futures[executor.submit(run_single_analysis, sym, lang)] = sym
+            futures[executor.submit(run_single_analysis, sym, lang, chat_id)] = sym
 
         # Collect results as they complete
         for future in as_completed(futures):
