@@ -7,7 +7,7 @@ on:
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Longer timeout for multiple Pro analyses
+    timeout-minutes: 45  # 4 assets × 7 Pro agents = needs more time
 
     steps:
       - name: Checkout
