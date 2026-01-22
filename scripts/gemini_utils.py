@@ -171,7 +171,7 @@ def extract_price_from_text(text: str) -> Optional[float]:
 
 def call_gemini(
     prompt: str,
-    model: str = "gemini-3-flash-preview",
+    model: str = "gemini-3-pro-preview",
     use_search: bool = False,
     max_retries: int = 3,
     retry_delay: int = 5,
@@ -186,7 +186,7 @@ def call_gemini(
 
     Args:
         prompt: The prompt to send to Gemini
-        model: Gemini model name (default: gemini-3-flash-preview)
+        model: Gemini model name (default: gemini-3-pro-preview)
         use_search: Whether to enable Google Search grounding
         max_retries: Maximum number of retry attempts
         retry_delay: Base delay between retries (uses exponential backoff)
@@ -230,10 +230,10 @@ def call_gemini(
 
 
 def call_gemini_flash(prompt: str, use_search: bool = True, max_retries: int = 3) -> str:
-    """Call Gemini Flash with optional Google Search grounding."""
+    """Call Gemini Pro with optional Google Search grounding (legacy name kept for compatibility)."""
     return call_gemini(
         prompt=prompt,
-        model="gemini-3-flash-preview",
+        model="gemini-3-pro-preview",
         use_search=use_search,
         max_retries=max_retries,
     )
@@ -252,7 +252,7 @@ def call_gemini_pro(prompt: str, use_search: bool = False, max_retries: int = 3)
 def call_gemini_vision(
     prompt: str,
     image: Union[io.BytesIO, bytes],
-    model: str = "gemini-3-flash-preview",
+    model: str = "gemini-3-pro-preview",
     max_retries: int = 3,
     retry_delay: int = 5,
 ) -> str:
@@ -262,7 +262,7 @@ def call_gemini_vision(
     Args:
         prompt: Text prompt describing what to analyze
         image: Image data as BytesIO or bytes (PNG format)
-        model: Gemini model name (default: gemini-3-flash-preview)
+        model: Gemini model name (default: gemini-3-pro-preview)
         max_retries: Maximum number of retry attempts
         retry_delay: Base delay between retries
 

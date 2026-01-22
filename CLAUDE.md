@@ -6,8 +6,9 @@
 
 | Task | Model |
 |------|-------|
-| Fast tasks (data gathering, analysts) | `gemini-3-flash-preview` |
-| Deep thinking (judges, final decisions) | `gemini-3-pro-preview` |
+| ALL tasks | `gemini-3-pro-preview` |
+
+> We have sufficient Gemini API quota, so we use Pro everywhere for best quality.
 
 ### Usage
 
@@ -16,16 +17,10 @@ All LLM calls MUST go through `scripts/gemini_utils.py`:
 ```python
 from gemini_utils import call_gemini_flash, call_gemini_pro, call_gemini_vision
 
-# Fast tasks with Google Search
-response = call_gemini_flash(prompt, use_search=True)
-
-# Deep thinking without search
-response = call_gemini_pro(prompt, use_search=False)
-
-# Vision analysis with chart image
-from chart_vision import create_chart_for_analysis
-chart_image = create_chart_for_analysis(symbol)  # Returns BytesIO
-response = call_gemini_vision(prompt, chart_image)
+# All functions now use gemini-3-pro-preview
+response = call_gemini_flash(prompt, use_search=True)   # Pro with search
+response = call_gemini_pro(prompt, use_search=False)    # Pro without search
+response = call_gemini_vision(prompt, chart_image)      # Pro with vision
 ```
 
 **Do NOT use Claude/Anthropic or OpenAI APIs in this project.**
@@ -35,7 +30,7 @@ response = call_gemini_vision(prompt, chart_image)
 ```
 trading-crew/
 ├── scripts/
-│   ├── gemini_utils.py         # Gemini API (Flash, Pro, Vision)
+│   ├── gemini_utils.py         # Gemini API (all Pro, Vision)
 │   ├── chart_vision.py         # 4-panel chart generator (Plotly)
 │   ├── universal_agents.py     # Multi-agent debate system
 │   ├── telegram_worker.py      # /analyze command
