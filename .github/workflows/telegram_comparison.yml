@@ -7,7 +7,7 @@ on:
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Longer timeout for multiple analyses
+    timeout-minutes: 30  # Longer timeout for multiple Pro analyses
 
     steps:
       - name: Checkout
