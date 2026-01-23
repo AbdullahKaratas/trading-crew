@@ -1,0 +1,54 @@
+name: Telegram Portfolio Worker
+
+on:
+  repository_dispatch:
+    types: [telegram_portfolio]
+
+jobs:
+  portfolio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90  # Multiple positions × 7 Pro agents each
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e TradingAgents/
+
+      - name: Run Portfolio Analysis
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          PORTFOLIO_ARGS: ${{ github.event.client_payload.portfolio_args }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          USER_ID: ${{ github.event.client_payload.user_id }}
+          USERNAME: ${{ github.event.client_payload.username }}
+          LANG: ${{ github.event.client_payload.lang }}
+        run: python scripts/portfolio_worker.py
+
+      - name: Send Error on Failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          LANG: ${{ github.event.client_payload.lang }}
+        run: |
+          if [ "$LANG" = "en" ]; then
+            MSG="❌ Error analyzing portfolio."
+          else
+            MSG="❌ Fehler bei Portfolio-Analyse."
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"${MSG}\", \"parse_mode\": \"Markdown\"}"
