@@ -37,27 +37,32 @@ class Position:
     symbol: str  # yfinance symbol
     display_name: str  # User-provided name
     direction: str  # LONG/SHORT/NORMAL
-    invested_amount: float
+    current_value: float  # Current total value of position in €
     factor: float  # Leverage (1 for normal stocks)
     knockout_level: float  # 0 for normal stocks
-    entry_price: Optional[float] = None  # Entry price for P/L calculation
-    currency: str = "USD"  # Currency for entry price (USD or EUR)
+    performance: Optional[float] = None  # Performance in % (e.g., 49.40 or -15.5)
+    currency: str = "USD"  # Currency for KO level (USD or EUR)
 
 
 def parse_position(pos_str: str) -> Optional[Position]:
     """
     Parse a position string into a Position object.
 
-    Format: <Stock>-<Direction>-<InvestedMoney>-<Factor>-<KnockoutValue>[-<EntryPrice>][-<Currency>]
+    Format: <Stock>-<Direction>-<CurrentValue>-<Factor>-<KnockoutLevel>[-<Performance>][-<Currency>]
+
+    Performance can be negative (e.g., -15.5 for -15.5%)
 
     Examples:
         SILVER-LONG-956-4.16-78
-        SILVER-LONG-956-4.16-78-95.50
-        SILVER-LONG-956-4.16-78-95.50-USD
-        SiemensEnergy-LONG-365.85-5.17-115-125-EUR
+        SILVER-LONG-956-4.16-78-49.40          (49.40% profit)
+        SILVER-LONG-956-4.16-78--15.5          (15.5% loss, note double dash)
+        SILVER-LONG-956-4.16-78-49.40-USD
+        SiemensEnergy-LONG-365-5.17-115-49.40-EUR
         AAPL-NORMAL-1000-1-0
     """
-    parts = pos_str.split("-")
+    # Handle negative performance: replace -- with a placeholder
+    pos_str_normalized = pos_str.replace("--", "-NEG")
+    parts = pos_str_normalized.split("-")
 
     if len(parts) < 5:
         print(f"  Invalid position format: {pos_str} (need at least 5 parts)")
@@ -71,20 +76,25 @@ def parse_position(pos_str: str) -> Optional[Position]:
             print(f"  Invalid direction: {direction}")
             return None
 
-        invested_amount = float(parts[2])
+        current_value = float(parts[2])
         factor = float(parts[3])
         knockout_level = float(parts[4])
 
-        # Optional entry price (6th part) and currency (7th part)
-        entry_price = None
+        # Optional performance (6th part) and currency (7th part)
+        performance = None
         currency = "USD"  # Default currency
 
         if len(parts) > 5:
-            # Check if 6th part is a currency or a price
-            if parts[5].upper() in ["USD", "EUR"]:
-                currency = parts[5].upper()
+            part5 = parts[5]
+            # Check if 6th part is a currency or performance
+            if part5.upper() in ["USD", "EUR"]:
+                currency = part5.upper()
             else:
-                entry_price = float(parts[5])
+                # Handle negative performance (NEG prefix from normalization)
+                if part5.startswith("NEG"):
+                    performance = -float(part5[3:])
+                else:
+                    performance = float(part5)
                 # Check for currency in 7th part
                 if len(parts) > 6 and parts[6].upper() in ["USD", "EUR"]:
                     currency = parts[6].upper()
@@ -93,10 +103,10 @@ def parse_position(pos_str: str) -> Optional[Position]:
             symbol="",  # Will be resolved later
             display_name=display_name,
             direction=direction,
-            invested_amount=invested_amount,
+            current_value=current_value,
             factor=factor,
             knockout_level=knockout_level,
-            entry_price=entry_price,
+            performance=performance,
             currency=currency,
         )
     except (ValueError, IndexError) as e:
@@ -122,22 +132,21 @@ def calculate_ko_proximity(current_price: float, knockout_level: float, directio
         return 100.0  # NORMAL stocks have no KO
 
 
-def calculate_pl_percent(current_price: float, entry_price: float, direction: str) -> Optional[float]:
+def calculate_original_investment(current_value: float, performance: Optional[float]) -> Optional[float]:
     """
-    Calculate P/L percentage.
+    Calculate original investment from current value and performance.
 
-    LONG: (current_price - entry_price) / entry_price * 100
-    SHORT: (entry_price - current_price) / entry_price * 100
+    Formula: original = current_value / (1 + performance/100)
+
+    Example: current=956€, performance=+49.40% → original = 956 / 1.494 = 639.89€
     """
-    if entry_price is None or entry_price <= 0:
+    if performance is None:
         return None
 
-    if direction in ["LONG", "NORMAL"]:
-        return (current_price - entry_price) / entry_price * 100
-    elif direction == "SHORT":
-        return (entry_price - current_price) / entry_price * 100
+    if performance == -100:  # Edge case: total loss
+        return None
 
-    return None
+    return current_value / (1 + performance / 100)
 
 
 def run_single_analysis(symbol: str, lang: str, chat_id: str = None) -> dict:
@@ -189,18 +198,18 @@ def generate_portfolio_recommendations(positions_with_analysis: list, lang: str)
         analysis = item.get("analysis", {})
         current_price = item.get("current_price", 0)
         ko_proximity = item.get("ko_proximity", 100)
-        pl_percent = item.get("pl_percent")
 
         trade = analysis.get("trade_decision", {}) if analysis else {}
         signal = trade.get("signal", "N/A")
         confidence = trade.get("confidence", 0)
 
-        pl_str = f", P/L: {pl_percent:+.1f}%" if pl_percent is not None else ""
+        perf_str = f", Performance: {pos.performance:+.1f}%" if pos.performance is not None else ""
+        curr_symbol = "€" if pos.currency == "EUR" else "$"
 
         summary = f"""
 **{pos.display_name}** ({pos.symbol})
-- Position: {pos.direction} | Invested: {pos.invested_amount:.2f} | Factor: {pos.factor}x
-- Current Price: ${current_price:.2f}{pl_str}
+- Position: {pos.direction} | Current Value: {pos.current_value:.2f}€ | Factor: {pos.factor}x{perf_str}
+- Asset Price: {curr_symbol}{current_price:.2f}
 - KO Level: {pos.knockout_level} | KO Distance: {ko_proximity:.1f}%
 - Analysis Signal: {signal} | Confidence: {confidence:.0%}
 - Analysis: {trade.get('detailed_analysis', 'N/A')[:300]}
@@ -275,7 +284,6 @@ def format_portfolio_output(
         pos = item["position"]
         current_price = item.get("current_price", 0)
         ko_proximity = item.get("ko_proximity", 100)
-        pl_percent = item.get("pl_percent")
         analysis = item.get("analysis", {})
         trade = analysis.get("trade_decision", {}) if analysis else {}
 
@@ -295,23 +303,23 @@ def format_portfolio_output(
         else:
             ko_emoji = ""  # SAFE
 
-        # Currency symbol
+        # Currency symbol for KO level
         curr_symbol = "€" if pos.currency == "EUR" else "$"
 
-        # P/L display
-        if pl_percent is not None:
-            pl_emoji = "" if pl_percent >= 0 else ""
-            pl_str = f"\n├── Entry: {curr_symbol}{pos.entry_price:.2f} → P/L: {pl_percent:+.1f}% {pl_emoji}"
+        # Performance display
+        if pos.performance is not None:
+            perf_emoji = "" if pos.performance >= 0 else ""
+            perf_str = f" | {pos.performance:+.1f}% {perf_emoji}"
         else:
-            pl_str = ""
+            perf_str = ""
 
         # Signal emoji
         signal_emoji = {"LONG": "", "SHORT": "", "HOLD": "", "IGNORE": ""}.get(signal, "")
 
         position_lines += f"""
 {dir_emoji} *{pos.display_name}* ({pos.direction})
-├── {curr_symbol}{current_price:,.2f} | {pos.factor}x | {pos.invested_amount:.0f}{"€" if is_de else "$"} invested{pl_str}
-├── KO: {pos.knockout_level} ({ko_proximity:.1f}% {"entfernt" if is_de else "away"}) {ko_emoji}
+├── {pos.current_value:,.0f}€{perf_str} | {pos.factor}x
+├── {curr_symbol}{current_price:,.2f} | KO: {curr_symbol}{pos.knockout_level} ({ko_proximity:.1f}% {"entfernt" if is_de else "away"}) {ko_emoji}
 ├── Signal: {signal} ({confidence:.0%}) {signal_emoji}
 """
 
@@ -340,7 +348,7 @@ def show_portfolio(user_id: str, chat_id: str, lang: str) -> int:
     positions = db.get_portfolio(user_id)
 
     if not positions:
-        msg = " Kein Portfolio gefunden. Nutze `/portfolio SYMBOL-DIRECTION-AMOUNT-FACTOR-KO` zum Hinzufugen." if is_de else " No portfolio found. Use `/portfolio SYMBOL-DIRECTION-AMOUNT-FACTOR-KO` to add positions."
+        msg = " Kein Portfolio gefunden. Nutze `/portfolio SYMBOL-DIRECTION-VALUE-FACTOR-KO` zum Hinzufugen." if is_de else " No portfolio found. Use `/portfolio SYMBOL-DIRECTION-VALUE-FACTOR-KO` to add positions."
         send_telegram_message(chat_id, msg)
         return 0
 
@@ -350,15 +358,21 @@ def show_portfolio(user_id: str, chat_id: str, lang: str) -> int:
     for pos in positions:
         direction = pos.get("direction", "?")
         dir_emoji = {"LONG": "", "SHORT": "", "NORMAL": ""}.get(direction, "")
-        entry = pos.get("entry_price")
+        performance = pos.get("performance")
         currency = pos.get("currency", "USD")
         curr_symbol = "€" if currency == "EUR" else "$"
-        entry_str = f" @ {curr_symbol}{entry:.2f}" if entry else ""
+
+        # Performance display
+        if performance is not None:
+            perf_emoji = "" if performance >= 0 else ""
+            perf_str = f" | {performance:+.1f}% {perf_emoji}"
+        else:
+            perf_str = ""
 
         lines.append(
             f"{dir_emoji} *{pos.get('display_name', pos.get('symbol'))}* ({direction})"
         )
-        lines.append(f"├── {pos.get('invested_amount', 0):.0f} | {pos.get('factor', 1)}x | KO: {pos.get('knockout_level', 0)}{entry_str}")
+        lines.append(f"├── {pos.get('current_value', 0):.0f}€{perf_str} | {pos.get('factor', 1)}x | KO: {curr_symbol}{pos.get('knockout_level', 0)}")
 
     lines.append("")
     lines.append(f"{'Nutze' if is_de else 'Use'} `/portfolio` {'fur Analyse' if is_de else 'for analysis'}")
@@ -430,10 +444,10 @@ def update_portfolio(user_id: str, chat_id: str, lang: str) -> int:
             symbol=db_pos.get("symbol", ""),
             display_name=db_pos.get("display_name", db_pos.get("symbol", "")),
             direction=db_pos.get("direction", "NORMAL"),
-            invested_amount=float(db_pos.get("invested_amount", 0)),
+            current_value=float(db_pos.get("current_value", 0)),
             factor=float(db_pos.get("factor", 1)),
             knockout_level=float(db_pos.get("knockout_level", 0)),
-            entry_price=float(db_pos["entry_price"]) if db_pos.get("entry_price") else None,
+            performance=float(db_pos["performance"]) if db_pos.get("performance") is not None else None,
             currency=db_pos.get("currency", "USD"),
         ))
 
@@ -478,10 +492,10 @@ def run_portfolio_analysis(
                     "symbol": pos.symbol,
                     "display_name": pos.display_name,
                     "direction": pos.direction,
-                    "invested_amount": pos.invested_amount,
+                    "current_value": pos.current_value,
                     "factor": pos.factor,
                     "knockout_level": pos.knockout_level,
-                    "entry_price": pos.entry_price,
+                    "performance": pos.performance,
                     "currency": pos.currency,
                 })
             print(f"  Saved {len(positions)} positions")
@@ -533,14 +547,12 @@ def run_portfolio_analysis(
                 current_price = trade.get("price_usd", 0)
 
         ko_proximity = calculate_ko_proximity(current_price, pos.knockout_level, pos.direction)
-        pl_percent = calculate_pl_percent(current_price, pos.entry_price, pos.direction)
 
         positions_with_analysis.append({
             "position": pos,
             "analysis": analysis.get("result") if analysis.get("success") else None,
             "current_price": current_price,
             "ko_proximity": ko_proximity,
-            "pl_percent": pl_percent,
         })
 
     # Generate portfolio-level recommendations
@@ -606,7 +618,7 @@ def main():
             positions.append(pos)
 
     if not positions:
-        msg = " Keine gultigen Positionen gefunden.\nFormat: `SYMBOL-DIRECTION-AMOUNT-FACTOR-KO[-ENTRY][-EUR/USD]`\n\nFlags: `--nosave` (nicht speichern)" if is_de else " No valid positions found.\nFormat: `SYMBOL-DIRECTION-AMOUNT-FACTOR-KO[-ENTRY][-EUR/USD]`\n\nFlags: `--nosave` (don't save)"
+        msg = " Keine gultigen Positionen gefunden.\nFormat: `SYMBOL-DIRECTION-VALUE-FACTOR-KO[-PERF][-EUR/USD]`\n\nBeispiel: `SILVER-LONG-956-4.16-78-49.40`\nNegative Perf: `SILVER-LONG-500-4.16-78--15.5`\n\nFlags: `--nosave` (nicht speichern)" if is_de else " No valid positions found.\nFormat: `SYMBOL-DIRECTION-VALUE-FACTOR-KO[-PERF][-EUR/USD]`\n\nExample: `SILVER-LONG-956-4.16-78-49.40`\nNegative perf: `SILVER-LONG-500-4.16-78--15.5`\n\nFlags: `--nosave` (don't save)"
         send_telegram_message(chat_id, msg)
         return 1
 
