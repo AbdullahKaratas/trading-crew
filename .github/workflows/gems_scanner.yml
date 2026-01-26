@@ -22,16 +22,15 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install praw
 
       - name: Run GEM Scanner
         env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
           LANG: ${{ github.event.client_payload.lang }}
+          CATEGORY: ${{ github.event.client_payload.category }}
+          # Legacy support for old SUBREDDIT parameter
           SUBREDDIT: ${{ github.event.client_payload.subreddit }}
         run: python scripts/gems_worker.py
 
@@ -40,7 +39,13 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          LANG: ${{ github.event.client_payload.lang }}
         run: |
+          if [ "$LANG" = "en" ]; then
+            MSG="❌ GEM Scanner error. Please try again later."
+          else
+            MSG="❌ GEM Scanner Fehler. Bitte später erneut versuchen."
+          fi
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"❌ GEM Scanner error. Please try again later.\", \"parse_mode\": \"Markdown\"}"
+            -d "{\"chat_id\": \"${CHAT_ID}\", \"text\": \"${MSG}\", \"parse_mode\": \"Markdown\"}"
