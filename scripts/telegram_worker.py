@@ -457,17 +457,16 @@ def _format_strategies(strategies: dict, risk_labels: dict, labels: dict) -> str
 
 
 def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: float = None, lang: str = "de") -> str:
-    """Format analysis result for Telegram with new table-based format."""
+    """Format analysis result for Telegram with enhanced Claude-style format."""
     trade = result.get("trade_decision") or {}
     is_de = lang == "de"
 
-    # Get all values from structured LLM response - NO FALLBACKS
-    # If trade_decision is empty, risk_manager already raised an error
+    # Get all values from structured LLM response
     signal_raw = trade.get("signal", "—").upper()
-    confidence = trade.get("confidence")  # None if missing
+    confidence = trade.get("confidence")
     unable_to_assess = trade.get("unable_to_assess", False)
-    price_usd = trade.get("price_usd")  # None if missing
-    price_eur = trade.get("price_eur")  # None if missing
+    price_usd = trade.get("price_usd")
+    price_eur = trade.get("price_eur")
     strategies = trade.get("strategies") or {}
     hold_alternative = trade.get("hold_alternative")
     support_zones = trade.get("support_zones") or []
@@ -476,136 +475,155 @@ def format_analyze_result(symbol: str, result: dict, stock_data: dict, budget: f
 
     # Signal mapping with emojis
     signal_map = {
-        "LONG": ("🟢", "LONG"),
-        "SHORT": ("🔴", "SHORT"),
-        "HOLD": ("🟡", "HOLD"),
-        "IGNORE": ("⚫", "IGNORE"),
+        "LONG": ("🟢", "LONG", "📈"),
+        "SHORT": ("🔴", "SHORT", "📉"),
+        "HOLD": ("🟡", "HOLD", "⏸️"),
+        "IGNORE": ("⚫", "IGNORE", "🚫"),
     }
-    emoji, signal = signal_map.get(signal_raw, ("🟡", "HOLD"))
+    emoji, signal, trend_emoji = signal_map.get(signal_raw, ("🟡", "HOLD", "⏸️"))
 
     # Labels
     labels = {
-        "price": "Price" if not is_de else "Kurs",
-        "confidence": "Confidence" if not is_de else "Konfidenz",
-        "strategies": "Knockout Strategies" if not is_de else "Knockout-Strategien",
-        "strategy": "Strategy" if not is_de else "Strategie",
-        "ko_level": "KO-Level",
-        "distance": "Distance" if not is_de else "Abstand",
-        "risk": "Risk" if not is_de else "Risiko",
-        "conservative": "Conservative" if not is_de else "Konservativ",
-        "moderate": "Moderate" if not is_de else "Moderat",
-        "aggressive": "Aggressive" if not is_de else "Aggressiv",
-        "support": "Support Zones" if not is_de else "Unterstützungszonen",
-        "resistance": "Resistance Zones" if not is_de else "Widerstandszonen",
-        "analysis": "Analysis" if not is_de else "Analyse",
-        "alternative": "Alternative (for those who want to enter)" if not is_de else "Alternative (für Einstieg trotz HOLD)",
-        "low": "Low" if not is_de else "Niedrig",
-        "medium": "Medium" if not is_de else "Mittel",
-        "high": "High" if not is_de else "Hoch",
-        "no_assessment": "Assessment not possible" if not is_de else "Keine Einschätzung möglich",
+        "conservative": "Konservativ" if is_de else "Conservative",
+        "moderate": "Moderat" if is_de else "Moderate",
+        "aggressive": "Aggressiv" if is_de else "Aggressive",
+        "low": "Niedrig" if is_de else "Low",
+        "medium": "Mittel" if is_de else "Medium",
+        "high": "Hoch" if is_de else "High",
     }
-
-    # Risk label translation
     risk_labels = {"low": labels["low"], "medium": labels["medium"], "high": labels["high"]}
 
-    # Confidence bar visualization
+    # Confidence visualization
     if confidence is not None:
         conf_bars = int(confidence * 10)
         conf_display = "█" * conf_bars + "░" * (10 - conf_bars)
-        conf_text = f"{conf_display} {confidence:.0%}"
+        conf_pct = f"{confidence:.0%}"
     else:
-        conf_text = "—"
+        conf_display = "░" * 10
+        conf_pct = "—"
 
     # Price display
-    if price_usd is not None and price_eur is not None:
-        price_text = f"${price_usd:,.2f} / €{price_eur:,.2f}"
-    elif price_usd is not None:
-        price_text = f"${price_usd:,.2f}"
-    else:
-        price_text = "—"
+    price_text = f"${price_usd:,.2f}" if price_usd else "—"
+    price_eur_text = f"€{price_eur:,.2f}" if price_eur else ""
 
-    # Build response
-    response = f"""
-{emoji} *{signal}: {symbol}*
+    # ═══════════════════════════════════════════════════════════
+    # BUILD RESPONSE - Claude Style
+    # ═══════════════════════════════════════════════════════════
+
+    response = f"""{emoji} *{signal}* │ *{symbol}*
+{'═' * 30}
 _{stock_data['name']}_
 
-💵 *{labels['price']}:* {price_text}
-📊 *{labels['confidence']}:* {conf_text}
+💵 *Kurs:* {price_text}"""
+
+    if price_eur_text:
+        response += f" ({price_eur_text})"
+
+    response += f"""
+📊 *Konfidenz:* {conf_display} {conf_pct}
 """
 
     # Handle unable to assess
     if unable_to_assess:
-        response += f"\n⚠️ *{labels['no_assessment']}*\n"
+        reason = trade.get("unable_to_assess_reason", "")
+        response += f"\n⚠️ *Keine Einschätzung möglich*"
+        if reason:
+            response += f"\n_{reason}_"
+        response += "\n"
 
-    # Strategies section
-    if strategies and signal_raw in ["LONG", "SHORT"]:
-        response += f"\n🎯 *{labels['strategies']} ({signal}):*\n"
-        response += _format_strategies(strategies, risk_labels, labels)
+    # ═══════════════════════════════════════════════════════════
+    # KNOCKOUT STRATEGIES TABLE
+    # ═══════════════════════════════════════════════════════════
 
-    # HOLD with alternative
+    active_strategies = strategies
+    active_signal = signal_raw
+
+    # Use hold_alternative if signal is HOLD
     if signal_raw == "HOLD" and hold_alternative:
-        alt_dir = hold_alternative.get("direction", "LONG")
-        alt_strategies = hold_alternative.get("strategies", {})
-        alt_emoji = "📈" if alt_dir == "LONG" else "📉"
-        response += f"\n{alt_emoji} *{labels['alternative']} ({alt_dir}):*\n"
-        response += _format_strategies(alt_strategies, risk_labels, labels)
+        active_strategies = hold_alternative.get("strategies", {})
+        active_signal = hold_alternative.get("direction", "LONG")
+        alt_rationale = hold_alternative.get("rationale", "")
+        response += f"""
+🔄 *Alternative ({active_signal}):*
+_{alt_rationale}_
+"""
 
-    # Support zones
+    if active_strategies:
+        response += f"""
+{'─' * 30}
+🎯 *Knockout-Strategien ({active_signal}):*
+"""
+        strategy_configs = [
+            ("conservative", "🛡️", labels["conservative"]),
+            ("moderate", "⚖️", labels["moderate"]),
+            ("aggressive", "💰", labels["aggressive"]),
+        ]
+
+        for strat_key, strat_emoji, strat_name in strategy_configs:
+            strat = active_strategies.get(strat_key, {})
+            ko = strat.get("ko_level_usd", 0)
+            dist = strat.get("distance_pct", 0)
+            risk = risk_labels.get(strat.get("risk", "medium"), labels["medium"])
+
+            if ko > 0:
+                response += f"{strat_emoji} *{strat_name}:* ${ko:,.0f} ({dist:.0f}%)\n"
+
+    # ═══════════════════════════════════════════════════════════
+    # SUPPORT & RESISTANCE - Compact Format
+    # ═══════════════════════════════════════════════════════════
+
+    if support_zones or resistance_zones:
+        response += f"""
+{'─' * 30}
+"""
+
     if support_zones:
-        response += f"""
+        response += "📉 *Support:* "
+        support_levels = [f"${z.get('level_usd', 0):,.0f}" for z in support_zones[:3]]
+        response += " → ".join(support_levels) + "\n"
 
-📉 *{labels['support']}:*"""
-        for zone in support_zones[:4]:  # Max 4 zones
-            level = zone.get("level_usd", 0)
-            desc = zone.get("description", "")
-            response += f"""
-├── ${level:,.2f} - {desc}"""
-
-    # Resistance zones
     if resistance_zones:
-        response += f"""
+        response += "📈 *Widerstand:* "
+        resistance_levels = [f"${z.get('level_usd', 0):,.0f}" for z in resistance_zones[:3]]
+        response += " → ".join(resistance_levels) + "\n"
 
-📈 *{labels['resistance']}:*"""
-        for zone in resistance_zones[:4]:  # Max 4 zones
-            level = zone.get("level_usd", 0)
-            desc = zone.get("description", "")
-            response += f"""
-├── ${level:,.2f} - {desc}"""
+    # ═══════════════════════════════════════════════════════════
+    # TIMEFRAMES - Compact
+    # ═══════════════════════════════════════════════════════════
 
-    # Detailed analysis
-    if detailed_analysis:
-        # Allow longer analysis for full debate summary (up to 2500 chars)
-        analysis_preview = detailed_analysis[:2500]
-        if len(detailed_analysis) > 2500:
-            analysis_preview += "..."
-        response += f"""
-
-💡 *{labels['analysis']}:*
-{analysis_preview}"""
-
-    # Timeframes section
     timeframes = trade.get("timeframes") or {}
     if timeframes:
-        tf_label = "Zeithorizonte" if is_de else "Timeframes"
-        tf_names = {
-            "short_term": "Kurzfristig (Tage-Wochen)" if is_de else "Short-term (days-weeks)",
-            "medium_term": "Mittelfristig (Wochen-Monate)" if is_de else "Medium-term (weeks-months)",
-            "long_term": "Langfristig (Monate-Jahre)" if is_de else "Long-term (months-years)",
-        }
         tf_emojis = {"LONG": "🟢", "SHORT": "🔴", "HOLD": "🟡"}
+        tf_short = str(timeframes.get("short_term", "HOLD")).upper()
+        tf_medium = str(timeframes.get("medium_term", "HOLD")).upper()
+        tf_long = str(timeframes.get("long_term", "HOLD")).upper()
 
         response += f"""
+{'─' * 30}
+⏱️ *Zeithorizonte:*
+{tf_emojis.get(tf_short, '🟡')} Kurz: {tf_short} │ {tf_emojis.get(tf_medium, '🟡')} Mittel: {tf_medium} │ {tf_emojis.get(tf_long, '🟡')} Lang: {tf_long}
+"""
 
-⏱️ *{tf_label}:*"""
-        for tf_key, tf_name in tf_names.items():
-            tf_signal = str(timeframes.get(tf_key, "HOLD")).upper()
-            emoji = tf_emojis.get(tf_signal, "🟡")
-            response += f"""
-├── {emoji} {tf_name}: {tf_signal}"""
+    # ═══════════════════════════════════════════════════════════
+    # DETAILED ANALYSIS
+    # ═══════════════════════════════════════════════════════════
+
+    if detailed_analysis:
+        response += f"""
+{'─' * 30}
+💡 *Analyse:*
+{detailed_analysis[:2000]}"""
+        if len(detailed_analysis) > 2000:
+            response += "..."
+
+    # ═══════════════════════════════════════════════════════════
+    # FOOTER
+    # ═══════════════════════════════════════════════════════════
 
     response += f"""
 
-📈 [Chart](https://www.tradingview.com/chart/?symbol={symbol})"""
+{'═' * 30}
+📊 [Chart](https://www.tradingview.com/chart/?symbol={symbol}) │ /analyze {symbol}"""
 
     return response.strip()
 

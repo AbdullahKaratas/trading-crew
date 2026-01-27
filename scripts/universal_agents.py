@@ -641,7 +641,28 @@ Return ONLY valid JSON (no markdown):
         {{"level_usd": <price>, "description": "<reason>"}},
         {{"level_usd": <price>, "description": "<reason>"}}
     ],
-    "detailed_analysis": "<500-800 word analysis including timeframe reasoning, geopolitical factors, and key news. {lang_instruction}>",
+    "detailed_analysis": "<600-1000 word STRUCTURED analysis. MUST include these sections with headers:
+
+**🐂 BULL-ARGUMENTE:**
+- 2-3 key bullish points from the debate
+
+**🐻 BEAR-ARGUMENTE:**
+- 2-3 key bearish points from the debate
+
+**⚖️ ENTSCHEIDUNG:**
+- Why this signal was chosen
+- Which side had stronger arguments
+
+**🎯 STRATEGIE-EMPFEHLUNG:**
+- Suggested allocation (e.g., 50% conservative, 35% moderate, 15% aggressive)
+- When to take profits
+- Risk management tips
+
+**📰 AKTUELLE FAKTOREN:**
+- Key news/events affecting the trade
+- Geopolitical considerations
+
+{lang_instruction}>",
     "timeframes": {{
         "short_term": "LONG or SHORT or HOLD",
         "medium_term": "LONG or SHORT or HOLD",
