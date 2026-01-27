@@ -213,12 +213,22 @@ def call_gemini(
             if response and response.text:
                 return response.text
         except Exception as e:
-            error_str = str(e)
-            # Handle rate limiting with exponential backoff
-            if "429" in error_str and attempt < max_retries - 1:
-                time.sleep(retry_delay * (attempt + 1))
+            error_str = str(e).lower()
+            # Handle retryable errors with exponential backoff
+            retryable = (
+                "429" in str(e) or  # Rate limiting
+                "disconnected" in error_str or  # Server disconnect
+                "connection" in error_str or  # Connection errors
+                "timeout" in error_str or  # Timeout errors
+                "503" in str(e) or  # Service unavailable
+                "500" in str(e)  # Internal server error
+            )
+            if retryable and attempt < max_retries - 1:
+                wait_time = retry_delay * (attempt + 1)
+                print(f"  [Gemini] Retryable error, waiting {wait_time}s (attempt {attempt + 1}/{max_retries}): {str(e)[:80]}")
+                time.sleep(wait_time)
                 continue
-            # Re-raise non-rate-limit errors on last attempt
+            # Re-raise on last attempt
             if attempt == max_retries - 1:
                 raise
 
@@ -291,14 +301,24 @@ def call_gemini_vision(
             if response and response.text:
                 return response.text
         except Exception as e:
-            error_str = str(e)
-            # Handle rate limiting with exponential backoff
-            if "429" in error_str and attempt < max_retries - 1:
-                time.sleep(retry_delay * (attempt + 1))
+            error_str = str(e).lower()
+            # Handle retryable errors with exponential backoff
+            retryable = (
+                "429" in str(e) or  # Rate limiting
+                "disconnected" in error_str or  # Server disconnect
+                "connection" in error_str or  # Connection errors
+                "timeout" in error_str or  # Timeout errors
+                "503" in str(e) or  # Service unavailable
+                "500" in str(e)  # Internal server error
+            )
+            if retryable and attempt < max_retries - 1:
+                wait_time = retry_delay * (attempt + 1)
+                print(f"  [Vision] Retryable error, waiting {wait_time}s (attempt {attempt + 1}/{max_retries}): {str(e)[:80]}")
+                time.sleep(wait_time)
                 continue
-            # Re-raise non-rate-limit errors on last attempt
+            # Re-raise on last attempt
             if attempt == max_retries - 1:
-                print(f"  [Vision] Error after {max_retries} attempts: {error_str[:100]}")
+                print(f"  [Vision] Error after {max_retries} attempts: {str(e)[:100]}")
                 raise
 
         # Wait before retry on empty response
@@ -372,17 +392,25 @@ def call_gemini_json(
 
         except Exception as e:
             last_error = e
-            error_str = str(e)
+            error_str = str(e).lower()
 
-            # Handle rate limiting with exponential backoff
-            if "429" in error_str:
+            # Handle retryable errors with exponential backoff
+            retryable = (
+                "429" in str(e) or  # Rate limiting
+                "disconnected" in error_str or  # Server disconnect
+                "connection" in error_str or  # Connection errors
+                "timeout" in error_str or  # Timeout errors
+                "503" in str(e) or  # Service unavailable
+                "500" in str(e)  # Internal server error
+            )
+            if retryable:
                 wait_time = 5 * (attempt + 1)
-                print(f"  Rate limited, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                print(f"  [JSON] Retryable error, waiting {wait_time}s (attempt {attempt + 1}/{max_retries}): {str(e)[:80]}")
                 time.sleep(wait_time)
                 continue
 
-            # Log other errors
-            print(f"  API error (attempt {attempt + 1}/{max_retries}): {error_str[:100]}")
+            # Log non-retryable errors
+            print(f"  [JSON] API error (attempt {attempt + 1}/{max_retries}): {str(e)[:100]}")
 
         # Wait before retry
         if attempt < max_retries - 1:
